@@ -25,9 +25,7 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 # store image urls as variables so it's easier to understand what they are
-IMAGE_ERROR = 'http://i.imgur.com/zZMQBmK.png'
 IMAGE_MAJOR_CUSTOM = 'http://i.imgur.com/kuIyXod.png'
 IMAGE_MINOR_CUSTOM = 'http://i.imgur.com/xFbwNIp.png'
 IMAGE_MAJOR_NORMAL = 'http://i.imgur.com/3qqCZZk.png'
@@ -157,6 +155,7 @@ def on_inline_chosen(bot, update):
 
     description, content = query_split(html.unescape(result.query))
 
+    log_update(update, f"created Text from inline")
     db_insert_spoiler(uuid, 'Text', description, content)
 
 
@@ -177,6 +176,8 @@ def on_callback_query(bot, update, users):
         update.callback_query.answer(text='Spoiler not found. Too old?')
         return
 
+    log_update(update, f"requested {spoiler['type']}")
+
     from_id = query.from_user.id
     user_data = users[from_id]
 
@@ -195,15 +196,15 @@ def on_callback_query(bot, update, users):
             update.callback_query.answer(
                 text='The spoiler has been sent to you as a direct message.')
         except (telegram.error.BadRequest, telegram.error.Unauthorized):
-            update.callback_query.answer(url=f't.me/spoilerobetabot?start={uuid}')
+            update.callback_query.answer(url=f't.me/spoilerobot?start={uuid}')
 
 
-#def db_insert_spoiler(uuid, content_type, description, content):
 def on_message(bot, update, users):
     user = users[update.message.from_user.id]
     if user.handle_conversation(bot, update) == 'END':
         uuid = get_uuid()
 
+        log_update(update, f"created {user.spoiler_type}")
         db_insert_spoiler(uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content)
 
         update.message.reply_text(
@@ -214,7 +215,6 @@ def on_message(bot, update, users):
             )
         )
         user.reset_state()
-
 
 
 def cmd_start(bot, update, args, users):
@@ -248,6 +248,12 @@ def cmd_help(bot, update):
         '<pre>@SpoileroBot title for the spoiler:::contents of the spoiler</pre>\n'
         'Note that the title will be immediately visible!',
         parse_mode='HTML'
+    )
+
+
+def log_update(update, msg):
+    logger.info(
+        f"{update.effective_user.username} ({update.effective_user.id}) {msg}"
     )
 
 
