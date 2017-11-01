@@ -64,11 +64,13 @@ class User:
     def handle_cancel(self, bot, update):
         if self.handle_conversation == self.conversation_neutral:
             return
-        self.handle_conversation = self.conversation_neutral
+
+        self.reset_state()
 
         reply_markup = None
         if self.started_from_inline:
             reply_markup = get_single_buttton_inline_keyboard('OK', switch_inline_query='')
+            
         update.message.reply_text(
             text='The spoiler preparation has been cancelled.',
             reply_markup=reply_markup

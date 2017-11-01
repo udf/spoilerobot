@@ -5,6 +5,7 @@ from functools import wraps
 
 
 def decode_content(function):
+    """Decodes the json content string into a dictionary"""
     @wraps(function)
     def wrapped(*args, **kwargs):
         kwargs['content'] = json.loads(kwargs['content'])
@@ -12,83 +13,84 @@ def decode_content(function):
     return wrapped
 
 
+def build_content(**kwargs):
+    return json.dumps({k: v for k, v in kwargs.items() if v is not None})
+
+
+def send_content(send_function, user_id, content):
+    return send_function(chat_id=user_id, **content)
+
+
 class Photo:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        bot.send_photo(
-            chat_id=user_id,
-            photo=content['id'],
-            caption=content.get('caption', '')
-        )
+        send_content(bot.send_photo, user_id, content)
 
     @staticmethod
     def get_content(message):
         best_photo = message.photo[0]
         for i in range(1, len(message.photo)):
             this_photo = message.photo[i]
-            if this_photo.width > best_photo.width or this_photo.height > best_photo.height:
+            if this_photo.width * this_photo.height > best_photo.width * best_photo.height:
                 best_photo = this_photo
 
-        return json.dumps({
-            'id': best_photo.file_id,
-            'caption': message.caption or ''
-        })
+        return build_content(photo=best_photo.file_id, caption=message.caption)
 
 
 class Audio:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_audio, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
+        return build_content(audio=message.audio.file_id, caption=message.caption)
 
 
 class Document:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_document, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
+        return build_content(document=message.document.file_id, caption=message.caption)
 
 
 class Video:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_video, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
+        return build_content(video=message.video.file_id, caption=message.caption)
 
 
 class Voice:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_voice, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
+        return build_content(voice=message.voice.file_id, caption=message.caption)
 
 
 class Sticker:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_sticker, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
+        return build_content(sticker=message.sticker.file_id)
 
 
 class VideoNote:
@@ -97,44 +99,40 @@ class VideoNote:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_video_note, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
+        return build_content(video_note=message.video_note.file_id)
 
 
 class Location:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_location, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
-
-
-class Venue:
-    @staticmethod
-    @decode_content
-    def send(bot, user_id, content):
-        raise NotImplemented
-
-    @staticmethod
-    def get_content(message):
-        raise NotImplemented
+        return build_content(
+            latitude=message.location.latitude,
+            longitude=message.location.longitude
+        )
 
 
 class Contact:
     @staticmethod
     @decode_content
     def send(bot, user_id, content):
-        raise NotImplemented
+        send_content(bot.send_contact, user_id, content)
 
     @staticmethod
     def get_content(message):
-        raise NotImplemented
+        return build_content(
+            phone_number=message.contact.phone_number,
+            first_name=message.contact.first_name,
+            last_name=message.contact.last_name
+        )
 
 
 class Text:
@@ -171,7 +169,6 @@ ATTACHMENT_MAPPING = {
     telegram.Location: Location,
     telegram.PhotoSize: Photo,
     telegram.Sticker: Sticker,
-    telegram.Venue: Venue,
     telegram.Video: Video,
     telegram.VideoNote: VideoNote,
     telegram.Voice: Voice

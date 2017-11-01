@@ -52,7 +52,7 @@ def query_split(query):
     """Attempts to split a query into a tuple of (description, content)"""
     temp_split = [split.strip() for split in query.split(':::', 1)]
     if len(temp_split) >= 2 and temp_split[0] and temp_split[1]:
-        return temp_split[0], temp_split[0]
+        return temp_split[0], temp_split[1]
     return '', query.strip()
 
 
@@ -160,6 +160,14 @@ def on_inline_chosen(bot, update):
     db_insert_spoiler(uuid, 'Text', description, content)
 
 
+def send_spoiler(bot, user_id, spoiler):
+    getattr(handlers, spoiler['type']).send(
+        bot,
+        user_id,
+        content=spoiler['content']
+    )
+
+
 def on_callback_query(bot, update, users):
     query = update.callback_query
     uuid = query.data
@@ -183,11 +191,7 @@ def on_callback_query(bot, update, users):
         )
     else:
         try:
-            getattr(handlers, spoiler['type']).send(
-                bot=bot,
-                user_id=from_id,
-                content=spoiler['content']
-            )
+            send_spoiler(bot, from_id, spoiler)
             update.callback_query.answer(
                 text='The spoiler has been sent to you as a direct message.')
         except (telegram.error.BadRequest, telegram.error.Unauthorized):
