@@ -85,12 +85,13 @@ class User:
             return
 
         self.spoiler_type = handler.__name__
-        self.spoiler_content = handler.get_content(update)
+        self.spoiler_content = handler.get_content(update.message)
         self.handle_conversation = self.conversation_handle_title
 
         update.message.reply_text(
             text='Now send a title for the spoiler (maximum 256 characters). '
-            'It will be immediately visible and can be used to add a small description for your spoiler.'
+            'It will be immediately visible and can be used to add a small description for your spoiler.\n'
+            'Type a dash (-) now if you do not want a title for your spoiler.'
         )
 
     def conversation_handle_title(self, bot, update):
@@ -104,5 +105,5 @@ class User:
             )
             return
 
-        self.spoiler_description = message.text
+        self.spoiler_description = '' if message.text == '-' else message.text
         return 'END'

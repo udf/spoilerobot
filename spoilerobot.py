@@ -183,7 +183,11 @@ def on_callback_query(bot, update, users):
         )
     else:
         try:
-            getattr(handlers, spoiler['type']).send(bot, from_id, spoiler['content'])
+            getattr(handlers, spoiler['type']).send(
+                bot=bot,
+                user_id=from_id,
+                content=spoiler['content']
+            )
             update.callback_query.answer(
                 text='The spoiler has been sent to you as a direct message.')
         except (telegram.error.BadRequest, telegram.error.Unauthorized):
