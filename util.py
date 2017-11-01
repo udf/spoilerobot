@@ -1,3 +1,4 @@
+import html
 from uuid import uuid4
 from telegram import (
     InlineQueryResultArticle, InputTextMessageContent,
@@ -26,6 +27,10 @@ def decode_uuid(uuid):
 
 def html_escape(s):  
     return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+
+
+def html_unescape(s):  
+    return html.unescape(str(s).replace('<br/>', '\n'))
 
 
 def get_article(title, description, thumb_url, text, uuid, reply_markup=None):
