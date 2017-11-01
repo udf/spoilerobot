@@ -1,9 +1,8 @@
-import os
-import time
 import html
-import threading
+import logging
+import os
 import sqlite3
-from uuid import uuid4
+import threading
 from collections import defaultdict
 
 import telegram.error
@@ -16,7 +15,10 @@ from telegram.ext import (
     MessageHandler, CallbackQueryHandler, CommandHandler, Filters
 )
 import validators
-import logging
+
+from user import User
+from util import *
+import handlers
 
 
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -24,68 +26,12 @@ logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s
 logger = logging.getLogger(__name__)
 
 
-# how many seconds before old taps are ignored
-MUTLIPLE_CLICK_TIMEOUT = 20
 # store image urls as variables so it's easier to understand what they are
 IMAGE_ERROR = 'http://i.imgur.com/zZMQBmK.png'
 IMAGE_MAJOR_CUSTOM = 'http://i.imgur.com/kuIyXod.png'
 IMAGE_MINOR_CUSTOM = 'http://i.imgur.com/xFbwNIp.png'
 IMAGE_MAJOR_NORMAL = 'http://i.imgur.com/3qqCZZk.png'
 IMAGE_MINOR_NORMAL = 'http://i.imgur.com/csh5H5O.png'
-
-
-class ClickCounter:
-    def __init__(self, required_clicks):
-        self.last_click = 0
-        self.count = 0
-        self.required_clicks = required_clicks
-
-    def click(self):
-        if time.time() - self.last_click >= MUTLIPLE_CLICK_TIMEOUT:
-            self.count = 0
-        self.count += 1
-        self.last_click = time.time()
-        return self.count >= self.required_clicks
-        
-
-class User:
-    def __init__(self):
-        self.conversation_state = 0
-        self.click_counters = defaultdict(lambda: ClickCounter(2))
-
-    def record_click(self, uuid):
-        if not decode_uuid(uuid)['is_major']:
-            return True
-
-        if self.click_counters[uuid].click():
-            del self.click_counters[uuid]
-            return True
-
-        return False
-
-
-def get_uuid(is_major=False, ignore=False, unused1=False, unused2=False, old=None):
-    """
-    Creates a uuid where the first character stores data about the spoiler
-    bit:          3              2             1        0
-    meaning: {major flag} {url/ignore flag} {unused} {unused}
-    """
-    flag = int(is_major) << 3 | int(ignore) << 2 | int(unused1) << 1 | unused2
-    return format(flag, 'x') + (old[1:] if old else str(uuid4()))
-
-
-def decode_uuid(uuid):
-    flag = int(uuid[0], 16)
-    return {
-        'is_major': bool(flag & 8),
-        'ignore': bool(flag & 4),
-       #'unused': bool(flag & 2),
-       #'unused': bool(flag & 1)
-    }
-
-
-def html_escape(s):  
-    return str(s).replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
 
 
 def db_insert_spoiler(uuid, content_type, description, content):
@@ -102,32 +48,6 @@ def db_get_spoiler(uuid):
     return db_cursor.fetchone()
 
 
-def get_article(title, description, thumb_url, text, uuid, reply_markup=None):
-    return InlineQueryResultArticle(
-        id=uuid,
-        title=title,
-        description=description,
-        thumb_url=thumb_url,
-        thumb_width=512,
-        thumb_height=512,
-        input_message_content=InputTextMessageContent(
-            message_text=text,
-            parse_mode='HTML'
-        ),
-        reply_markup=reply_markup
-    )
-
-
-def get_single_buttton_inline_keyboard(text, callback_data=None, url=None, switch_inline_query=None):
-    """Returns a single button InlineKeyboardMarkup"""
-    return InlineKeyboardMarkup([[InlineKeyboardButton(
-        text=text,
-        callback_data=callback_data,
-        url=url,
-        switch_inline_query=switch_inline_query
-    )]])
-
-
 def query_split(query):
     """Attempts to split a query into a tuple of (description, content)"""
     temp_split = [split.strip() for split in query.split(':::', 1)]
@@ -142,8 +62,7 @@ def get_inline_results(query):
     content_type = 'Text'
     if query.startswith('id:'):
         uuid = query[3:].lower().strip()
-        db_cursor.execute('SELECT type, description, content FROM spoilers WHERE uuid=?', (uuid[1:],))
-        spoiler = db_cursor.fetchone()
+        spoiler = db_get_spoiler(uuid)
         if spoiler:
             old_uuid = uuid
             description = spoiler['description']
@@ -155,16 +74,16 @@ def get_inline_results(query):
     if not content:
         return []
 
-    if content_type == 'Text':
-        content_type = 'Text only'
-
     is_url = bool(validators.url(content)) or bool(validators.url('http://' + content))
     if is_url:
-        get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard('Show spoiler', url=content)
+        get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(
+            'Show spoiler', url=content)
     else:
-        get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(text, callback_data=uuid)
+        get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(
+            text, callback_data=uuid)
 
     ignore = is_url or bool(old_uuid)
+    description = html_escape(description)
     results = []
     # if we are able to split query into a custom description + custom content
     if description and content:
@@ -223,8 +142,8 @@ def on_inline(bot, update):
         get_inline_results(query),
         cache_time=1,
         is_personal=True,
-        switch_pm_text='Advanced spoiler (media etc.)...',
-        switch_pm_parameter='new'
+        switch_pm_text='Advanced spoiler (media etc.)…',
+        switch_pm_parameter='inline'
     )
 
 
@@ -232,34 +151,19 @@ def on_inline_chosen(bot, update):
     """Stores the chosen inline result in the db, if necessary"""
     result = update.chosen_inline_result
     uuid = result.result_id
-    
+
     if decode_uuid(uuid)['ignore']:
         return
 
-    description, content = query_split(result.query)
+    description, content = query_split(html.unescape(result.query))
 
-    db_insert_spoiler(uuid, 'Text', description, html_escape(content))
-
-
-def send_spoiler(bot, user_id, spoiler):
-    #TODO:handle PM-ing other types
-    #document, photo, video, audio, sticker, voice
-    if spoiler['type'] != 'Text':
-        raise NotImplemented
-
-    bot.send_message(
-        chat_id=user_id,
-        text=spoiler['content'],
-        parse_mode='HTML'
-    )
+    db_insert_spoiler(uuid, 'Text', description, content)
 
 
 def on_callback_query(bot, update, users):
-
     query = update.callback_query
     uuid = query.data
 
-    print('cbquery', query)
     spoiler = db_get_spoiler(uuid)
     if not spoiler:
         update.callback_query.answer(text='Spoiler not found. Too old?')
@@ -279,28 +183,64 @@ def on_callback_query(bot, update, users):
         )
     else:
         try:
-            send_spoiler(bot, from_id, spoiler)
-            update.callback_query.answer(text='The spoiler has been sent to you as a direct message.')
+            getattr(handlers, spoiler['type']).send(bot, from_id, spoiler['content'])
+            update.callback_query.answer(
+                text='The spoiler has been sent to you as a direct message.')
         except (telegram.error.BadRequest, telegram.error.Unauthorized):
-            #TODO check what other errors could happen
             update.callback_query.answer(url=f't.me/spoilerobetabot?start={uuid}')
 
 
+#def db_insert_spoiler(uuid, content_type, description, content):
 def on_message(bot, update, users):
-    print('message', update.message)
-    #TODO:use this and message.text_html for handling the "waiting for content" conversation state
+    user = users[update.message.from_user.id]
+    if user.handle_conversation(bot, update) == 'END':
+        uuid = get_uuid()
+
+        db_insert_spoiler(uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content)
+
+        update.message.reply_text(
+            text='Done! Your advanced spoiler is ready.',
+            reply_markup=get_single_buttton_inline_keyboard(
+                'Send it',
+                switch_inline_query='id:'+uuid
+            )
+        )
+        user.reset_state()
+
 
 
 def cmd_start(bot, update, args, users):
-    #TODO:allow preparing an advanced spoiler by advancing user conversation state
+    user = users[update.message.from_user.id]
+
     if args:
+        if args[0] == 'inline':
+            return user.handle_start(bot, update, True)
+
         spoiler = db_get_spoiler(args[0])
         if spoiler:
-            send_spoiler(bot, update.message.from_user.id, spoiler)
+            return send_spoiler(bot, update.message.from_user.id, spoiler)
+
+    user.handle_start(bot, update)
+
+
+def cmd_cancel(bot, update, users):
+    users[update.message.from_user.id].handle_cancel(bot, update)
 
 
 def cmd_clear(bot, update):
     update.message.reply_text(250 * '.\n')
+
+
+def cmd_help(bot, update):
+    update.message.reply_text(
+        text='Type /start to prepare an advanced spoiler with a custom title.\n\n'
+        'You can type quick spoilers by using @SpoileroBot in inline mode:\n'
+        '<pre>@SpoileroBot spoiler here…</pre>\n\n'
+        'Custom titles can also be used from inline mode as follows:\n'
+        '<pre>@SpoileroBot title for the spoiler:::contents of the spoiler</pre>\n'
+        'Note that the title will be immediately visible!',
+        parse_mode='HTML'
+    )
 
 
 def error(bot, update, error):
@@ -318,12 +258,19 @@ def main():
     dp.add_handler(CallbackQueryHandler(
         lambda bot, update: on_callback_query(bot, update, users)
     ))
+
     dp.add_handler(CommandHandler(
         'start',
         lambda bot, update, args: cmd_start(bot, update, args, users),
         pass_args=True
     ))
+    dp.add_handler(CommandHandler(
+        'cancel',
+        lambda bot, update: cmd_cancel(bot, update, users)
+    ))
     dp.add_handler(CommandHandler('clear', cmd_clear))
+    dp.add_handler(CommandHandler('help', cmd_help))
+
     dp.add_handler(MessageHandler(
         Filters.all,
         lambda bot, update: on_message(bot, update, users)
