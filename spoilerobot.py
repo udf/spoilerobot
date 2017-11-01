@@ -19,10 +19,18 @@ from user import User
 from util import *
 import handlers
 
+logger = logging.getLogger()
+logFormatter = logging.Formatter("%(asctime)s - %(levelname)-5.5s - %(message)s")
+logger.setLevel(logging.INFO)
 
-logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-                    level=logging.INFO)
-logger = logging.getLogger(__name__)
+fileHandler = logging.FileHandler('bot.log')
+fileHandler.setFormatter(logFormatter)
+logger.addHandler(fileHandler)
+
+consoleHandler = logging.StreamHandler()
+consoleHandler.setFormatter(logFormatter)
+logger.addHandler(consoleHandler)
+
 
 # store image urls as variables so it's easier to understand what they are
 IMAGE_MAJOR_CUSTOM = 'http://i.imgur.com/kuIyXod.png'
