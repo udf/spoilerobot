@@ -50,9 +50,16 @@ def db_insert_spoiler(uuid, content_type, description, content):
 
 def db_get_spoiler(uuid):
     # increment hourly request statistic
-    db_cursor.execute('UPDATE requests SET count = count + 1 WHERE timestamp = ?',
-        (timestamp_hour(),)
+    db_cursor.execute('''
+        INSERT OR REPLACE INTO requests
+        VALUES (
+            :timestamp,
+            COALESCE((SELECT count FROM requests WHERE timestamp=:timestamp), 0) + 1
+        );
+        ''',
+        {'timestamp': timestamp_hour()}
     )
+    db_connection.commit()
     db_cursor.execute('SELECT type, description, content FROM spoilers WHERE uuid=?', (uuid[1:],))
     return db_cursor.fetchone()
 
