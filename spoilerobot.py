@@ -49,6 +49,10 @@ def db_insert_spoiler(uuid, content_type, description, content):
 
 
 def db_get_spoiler(uuid):
+    # increment hourly request statistic
+    db_cursor.execute('UPDATE requests SET count = count + 1 WHERE timestamp = ?',
+        (timestamp_hour(),)
+    )
     db_cursor.execute('SELECT type, description, content FROM spoilers WHERE uuid=?', (uuid[1:],))
     return db_cursor.fetchone()
 
@@ -88,14 +92,13 @@ def get_inline_results(query):
         get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(
             text, callback_data=uuid)
 
-    ignore = is_url or bool(old_uuid)
     description = html_escape(description)
     results = []
     # if we are able to split query into a custom description + custom content
     if description and content:
         # add those options to our results
         # custom major
-        uuid = get_uuid(is_major=True, ignore=ignore, old=old_uuid)
+        uuid = get_uuid(is_major=True, ignore=is_url, old=old_uuid)
         results.append(get_article(
             title='Custom Major Spoiler',
             description=f'{content_type}, custom title, double tap',
@@ -105,7 +108,7 @@ def get_inline_results(query):
             reply_markup=get_inline_keyboard('Double tap to show spoiler')
         ))
         # custom minor
-        uuid = get_uuid(is_major=False, ignore=ignore, old=old_uuid)
+        uuid = get_uuid(is_major=False, ignore=is_url, old=old_uuid)
         results.append(get_article(
             title='Custom Minor Spoiler',
             description=f'{content_type}, custom title, single tap',
@@ -117,7 +120,7 @@ def get_inline_results(query):
     else:
         # add normal spoiler options to our results
         # normal major
-        uuid = get_uuid(is_major=True, ignore=ignore, old=old_uuid)
+        uuid = get_uuid(is_major=True, ignore=is_url, old=old_uuid)
         results.append(get_article(
             title='Major Spoiler!',
             description=f'{content_type}, double tap',
@@ -127,7 +130,7 @@ def get_inline_results(query):
             reply_markup=get_inline_keyboard('Double tap to show spoiler')
         ))
         # normal minor
-        uuid = get_uuid(is_major=False, ignore=ignore, old=old_uuid)
+        uuid = get_uuid(is_major=False, ignore=is_url, old=old_uuid)
         results.append(get_article(
             title='Minor Spoiler',
             description=f'{content_type}, single tap',
@@ -317,6 +320,12 @@ if __name__ == '__main__':
             type TEXT,
             description TEXT,
             content TEXT
+        )
+    ''')
+    db_cursor.execute('''
+        CREATE TABLE IF NOT EXISTS requests (
+            timestamp INTEGER PRIMARY KEY,
+            count INTEGER
         )
     ''')
     db_connection.commit()
