@@ -83,6 +83,7 @@ def get_inline_results(query):
     if is_url:
         get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(
             'Show spoiler', url=content)
+        content_type = 'URL'
     else:
         get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(
             text, callback_data=uuid)

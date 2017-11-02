@@ -76,8 +76,9 @@ class User:
         )
 
     def conversation_neutral(self, bot, update):
-        # only handle_start can change the state from here
-        pass
+        update.message.reply_text(
+            text='Type /start to prepare an advanced spoiler with a custom title.'
+        )
 
     def conversation_handle_content(self, bot, update):
         handler = handlers.get_handler(update.message, update.message.effective_attachment)
