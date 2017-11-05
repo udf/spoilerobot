@@ -165,6 +165,12 @@ def send_spoiler(bot, user_id, spoiler):
 def on_callback_query(bot, update, users):
     query = update.callback_query
     uuid = query.data
+    from_id = query.from_user.id
+    user_data = users[from_id]
+
+    if not user_data.record_click(uuid):
+        update.callback_query.answer(text='Please tap again to see the spoiler')
+        return
 
     spoiler = db.get_spoiler(DB_CURSOR, uuid)
     if not spoiler:
@@ -172,13 +178,6 @@ def on_callback_query(bot, update, users):
         return
 
     log_update(update, f"requested {spoiler['type']}")
-
-    from_id = query.from_user.id
-    user_data = users[from_id]
-
-    if not user_data.record_click(uuid):
-        update.callback_query.answer(text='Please tap again to see the spoiler')
-        return
 
     if spoiler['type'] == 'Text' and len(spoiler['content']) <= 200:
         update.callback_query.answer(
