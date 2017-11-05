@@ -1,14 +1,7 @@
 import logging
-import os
-import sqlite3
-import threading
 from collections import defaultdict
 
 import telegram.error
-from telegram import (
-    InlineQueryResultArticle, InputTextMessageContent,
-    InlineKeyboardMarkup, InlineKeyboardButton
-)
 from telegram.ext import (
     Updater, InlineQueryHandler, ChosenInlineResultHandler,
     MessageHandler, CallbackQueryHandler, CommandHandler, Filters
@@ -17,7 +10,10 @@ import validators
 
 from user import User
 from util import *
+import config
+import db
 import handlers
+
 
 logger = logging.getLogger()
 logFormatter = logging.Formatter("%(asctime)s - %(levelname)-5.5s - %(message)s")
@@ -39,31 +35,6 @@ IMAGE_MAJOR_NORMAL = 'http://i.imgur.com/3qqCZZk.png'
 IMAGE_MINOR_NORMAL = 'http://i.imgur.com/csh5H5O.png'
 
 
-def db_insert_spoiler(uuid, content_type, description, content):
-    with db_lock:
-        db_cursor.execute(
-            'INSERT INTO spoilers (uuid, type, description, content) VALUES (?,?,?,?)',
-            (uuid[1:].lower(), content_type, description, content)
-        )
-        db_connection.commit()
-
-
-def db_get_spoiler(uuid):
-    # increment hourly request statistic
-    db_cursor.execute('''
-        INSERT OR REPLACE INTO requests
-        VALUES (
-            :timestamp,
-            COALESCE((SELECT count FROM requests WHERE timestamp=:timestamp), 0) + 1
-        );
-        ''',
-        {'timestamp': timestamp_hour()}
-    )
-    db_connection.commit()
-    db_cursor.execute('SELECT type, description, content FROM spoilers WHERE uuid=?', (uuid[1:],))
-    return db_cursor.fetchone()
-
-
 def query_split(query):
     """Attempts to split a query into a tuple of (description, content)"""
     temp_split = [split.strip() for split in query.split(':::', 1)]
@@ -73,31 +44,37 @@ def query_split(query):
 
 
 def get_inline_results(query):
-    was_fetched = False
     old_uuid = None
     content_type = 'Text'
+    content = ''
+    description = ''
     if query.startswith('id:'):
         uuid = query[3:].lower().strip()
-        spoiler = db_get_spoiler(uuid)
+        spoiler = db.get_spoiler(DB_CURSOR, uuid)
         if spoiler:
             old_uuid = uuid
             description = spoiler['description']
             content = spoiler['content']
             content_type = spoiler['type']
+        else:
+            content_type = 'Text (id not found)'
 
     if not old_uuid:
         description, content = query_split(query)
     if not content:
         return []
 
-    is_url = bool(validators.url(content)) or bool(validators.url('http://' + content))
+    is_url = (
+        isinstance(content, str) and
+        (bool(validators.url(content)) or bool(validators.url('http://' + content)))
+    )
     if is_url:
-        get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(
-            'Show spoiler', url=content)
+        def get_inline_keyboard(text):
+            return get_single_buttton_inline_keyboard('Show spoiler', url=content)
         content_type = 'URL'
     else:
-        get_inline_keyboard = lambda text: get_single_buttton_inline_keyboard(
-            text, callback_data=uuid)
+        def get_inline_keyboard(text):
+            return get_single_buttton_inline_keyboard(text, callback_data=uuid)
 
     description = html_escape(description)
     results = []
@@ -174,7 +151,7 @@ def on_inline_chosen(bot, update):
     description, content = query_split(html_unescape(result.query))
 
     log_update(update, f"created Text from inline")
-    db_insert_spoiler(uuid, 'Text', description, content)
+    db.insert_spoiler(DB_CURSOR, uuid, 'Text', description, content)
 
 
 def send_spoiler(bot, user_id, spoiler):
@@ -189,7 +166,7 @@ def on_callback_query(bot, update, users):
     query = update.callback_query
     uuid = query.data
 
-    spoiler = db_get_spoiler(uuid)
+    spoiler = db.get_spoiler(DB_CURSOR, uuid)
     if not spoiler:
         update.callback_query.answer(text='Spoiler not found. Too old?')
         return
@@ -223,7 +200,7 @@ def on_message(bot, update, users):
         uuid = get_uuid()
 
         log_update(update, f"created {user.spoiler_type}")
-        db_insert_spoiler(uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content)
+        db.insert_spoiler(DB_CURSOR, uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content)
 
         update.message.reply_text(
             text='Done! Your advanced spoiler is ready.',
@@ -242,7 +219,7 @@ def cmd_start(bot, update, args, users):
         if args[0] == 'inline':
             return user.handle_start(bot, update, True)
 
-        spoiler = db_get_spoiler(args[0])
+        spoiler = db.get_spoiler(DB_CURSOR, args[0])
         if spoiler:
             return send_spoiler(bot, update.message.from_user.id, spoiler)
 
@@ -281,7 +258,7 @@ def error(bot, update, error):
 
 def main():
     users = defaultdict(User)
-    updater = Updater(os.environ['tg_bot_spoilero'])
+    updater = Updater(config.BOT_TOKEN)
 
     dp = updater.dispatcher
 
@@ -317,25 +294,5 @@ def main():
 
 
 if __name__ == '__main__':
-    db_connection = sqlite3.connect('spoilerobot.db', check_same_thread=False)
-    db_connection.row_factory = sqlite3.Row
-    db_cursor = db_connection.cursor()
-    db_cursor.execute('''
-        CREATE TABLE IF NOT EXISTS spoilers (
-            uuid TEXT PRIMARY KEY,
-            timestamp INTEGER DEFAULT (strftime('%s', 'now')),
-            type TEXT,
-            description TEXT,
-            content TEXT
-        )
-    ''')
-    db_cursor.execute('''
-        CREATE TABLE IF NOT EXISTS requests (
-            timestamp INTEGER PRIMARY KEY,
-            count INTEGER
-        )
-    ''')
-    db_connection.commit()
-    db_lock = threading.Lock()
-
+    DB_CURSOR = db.connect()
     main()

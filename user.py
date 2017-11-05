@@ -1,6 +1,5 @@
 from collections import defaultdict
 import time
-import telegram
 from util import *
 import handlers
 

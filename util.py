@@ -1,14 +1,10 @@
 import html
-from uuid import uuid4
-import time
+import os
+
 from telegram import (
     InlineQueryResultArticle, InputTextMessageContent,
     InlineKeyboardMarkup, InlineKeyboardButton
 )
-
-
-def timestamp_hour():
-    return int(time.time() // 3600) * 3600
 
 
 def get_uuid(is_major=False, ignore=False, unused1=False, unused2=False, old=None):
@@ -19,7 +15,7 @@ def get_uuid(is_major=False, ignore=False, unused1=False, unused2=False, old=Non
     """
     ignore = ignore or bool(old)
     flag = int(is_major) << 3 | int(ignore) << 2 | int(unused1) << 1 | unused2
-    return format(flag, 'x') + (old[1:] if old else str(uuid4()))
+    return format(flag, 'x') + (old[1:] if old else os.urandom(24).hex())
 
 
 def decode_uuid(uuid):

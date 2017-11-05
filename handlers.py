@@ -4,17 +4,8 @@ import json
 from functools import wraps
 
 
-def decode_content(function):
-    """Decodes the json content string into a dictionary"""
-    @wraps(function)
-    def wrapped(*args, **kwargs):
-        kwargs['content'] = json.loads(kwargs['content'])
-        return function(*args, **kwargs)
-    return wrapped
-
-
 def build_content(**kwargs):
-    return json.dumps({k: v for k, v in kwargs.items() if v is not None})
+    return {k: v for k, v in kwargs.items() if v is not None}
 
 
 def send_content(send_function, user_id, content):
@@ -23,7 +14,6 @@ def send_content(send_function, user_id, content):
 
 class Photo:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_photo, user_id, content)
 
@@ -40,7 +30,6 @@ class Photo:
 
 class Audio:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_audio, user_id, content)
 
@@ -51,7 +40,6 @@ class Audio:
 
 class Document:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_document, user_id, content)
 
@@ -62,7 +50,6 @@ class Document:
 
 class Video:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_video, user_id, content)
 
@@ -73,7 +60,6 @@ class Video:
 
 class Voice:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_voice, user_id, content)
 
@@ -84,7 +70,6 @@ class Voice:
 
 class Sticker:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_sticker, user_id, content)
 
@@ -97,7 +82,6 @@ class VideoNote:
     __name__ = 'Video Note'
 
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_video_note, user_id, content)
 
@@ -108,7 +92,6 @@ class VideoNote:
 
 class Location:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_location, user_id, content)
 
@@ -122,7 +105,6 @@ class Location:
 
 class Contact:
     @staticmethod
-    @decode_content
     def send(bot, user_id, content):
         send_content(bot.send_contact, user_id, content)
 
