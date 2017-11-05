@@ -9,11 +9,11 @@ You can try it out by typing @spoilerobot (inline) in Telegram
 
       $ createuser spoilerobot
       $ createdb spoilerobot -U spoilerobot
-      $ psql -d spoilerobot
-      $ \password
+      $ psql -U spoilerobot
+      spoilerobot=> \password
       [enter a password for the bot's database user]
 
-- Store this password in the `tg_bot_spoilero_db_pwd` environmantal variable (or modify `config.py`)
+- Store this password in the `tg_bot_spoilero_db_pwd` environmental variable (or modify `config.py`)
 - Install dependencies with `pip install python-telegram-bot validators cryptography psycopg2`
 - Run the script and follow the instructions on creating your unique pepper (note that your pepper should remain the same for each instance of the bot and database)
 
