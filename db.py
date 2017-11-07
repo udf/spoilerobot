@@ -1,7 +1,8 @@
-import time
-import os
-import json
 import base64
+import json
+import os
+import threading
+import time
 
 import psycopg2
 import psycopg2.extras
@@ -11,10 +12,29 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 
 import config
+from util import timestamp_floor
 
+REQUEST_COUNT_LOCK = threading.Lock()
+REQUEST_COUNT = 0
 
-def timestamp_hour():
-    return int(time.time() // 3600) * 3600
+def store_request_count(cursor):
+    global REQUEST_COUNT
+    current_count = 0
+    with REQUEST_COUNT_LOCK:
+        current_count = REQUEST_COUNT
+        REQUEST_COUNT = 0
+
+    if current_count == 0:
+        return
+
+    cursor.execute('''
+        INSERT INTO requests (timestamp, count) VALUES (%(timestamp)s, %(count)s)
+        ON CONFLICT (timestamp) DO UPDATE
+        SET count = requests.count + %(count)s;
+        ''',
+        {'timestamp': timestamp_floor(config.REQUEST_COUNT_RESOLUTION), 'count': current_count}
+    )
+
 
 
 def derive_key(uuid, salt):
@@ -63,7 +83,6 @@ def connect():
 
 
 def insert_spoiler(cursor, uuid, content_type, description, content):
-    s = time.time()
     uuid = uuid[1:]
     salt = os.urandom(8)
 
@@ -78,11 +97,9 @@ def insert_spoiler(cursor, uuid, content_type, description, content):
         'INSERT INTO spoilers (hash, salt, token) VALUES (%s, %s, %s)',
         (hash_uuid(uuid), salt, token)
     )
-    print('insertion took', (time.time() - s)*1000, 'ms')
 
 
-def get_spoiler(cursor, uuid):
-    s = time.time()
+def get_spoiler(cursor, uuid):    
     uuid = uuid[1:]
     cursor.execute(
         'SELECT salt, token FROM spoilers WHERE hash=%s',
@@ -90,18 +107,12 @@ def get_spoiler(cursor, uuid):
     )
     spoiler = cursor.fetchone()
     if not spoiler:
-        print('failed get took', (time.time() - s)*1000, 'ms')
+        print(f'failed to fetch "{uuid}"')
         return None
 
-    # increment hourly request statistic
-    cursor.execute('''
-        INSERT INTO requests (timestamp, count) VALUES (%s, 0)
-        ON CONFLICT (timestamp) DO UPDATE
-        SET count = requests.count + 1;
-        ''',
-        (timestamp_hour(),)
-    )
+    global REQUEST_COUNT
+    with REQUEST_COUNT_LOCK:
+        REQUEST_COUNT += 1
 
     token = Fernet(derive_key(uuid, bytes(spoiler['salt']))).decrypt(bytes(spoiler['token']))
-    print('get took', (time.time() - s)*1000, 'ms')
     return json.loads(token)

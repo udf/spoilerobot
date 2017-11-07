@@ -1,10 +1,15 @@
 import html
 import os
+import time
 
 from telegram import (
     InlineQueryResultArticle, InputTextMessageContent,
     InlineKeyboardMarkup, InlineKeyboardButton
 )
+
+
+def timestamp_floor(period):
+    return int(time.time() // period) * period
 
 
 def get_uuid(is_major=False, ignore=False, unused1=False, unused2=False, old=None):

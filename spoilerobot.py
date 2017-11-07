@@ -1,5 +1,7 @@
 import logging
+import time
 from collections import defaultdict
+from signal import signal, SIGINT, SIGTERM, SIGABRT
 
 import telegram.error
 from telegram.ext import (
@@ -163,18 +165,16 @@ def send_spoiler(bot, user_id, spoiler):
 
 
 def on_callback_query(bot, update, users):
-    query = update.callback_query
-    uuid = query.data
-    from_id = query.from_user.id
-    user_data = users[from_id]
+    uuid = update.callback_query.data
+    from_id = update.callback_query.from_user.id
 
-    if not user_data.record_click(uuid):
+    if not users[from_id].record_click(uuid):
         update.callback_query.answer(text='Please tap again to see the spoiler')
         return
 
     spoiler = db.get_spoiler(DB_CURSOR, uuid)
     if not spoiler:
-        update.callback_query.answer(text='Spoiler not found. Too old?')
+        update.callback_query.answer(text='Spoiler not found. Too old?', cache_time=3600)
         return
 
     log_update(update, f"requested {spoiler['type']}")
@@ -182,7 +182,8 @@ def on_callback_query(bot, update, users):
     if spoiler['type'] == 'Text' and len(spoiler['content']) <= 200:
         update.callback_query.answer(
             text=spoiler['content'],
-            show_alert=True
+            show_alert=True,
+            cache_time=3600
         )
     else:
         try:
@@ -256,6 +257,13 @@ def error(bot, update, error):
 
 
 def main():
+    def on_signal(signum, frame):
+        if updater.running:
+            updater.stop()
+        else:
+            exit(1)
+
+
     users = defaultdict(User)
     updater = Updater(config.BOT_TOKEN)
 
@@ -288,8 +296,18 @@ def main():
 
     updater.start_polling()
 
-    # TODO maybe custom loop to clear old user click records?
-    updater.idle()
+
+    for sig in (SIGINT, SIGTERM, SIGABRT):
+        signal(sig, on_signal)
+
+    # TODO maybe clear old user click records?
+    next_request_save = 0
+    while updater.running:
+        if time.time() >= next_request_save:
+            next_request_save = time.time() + 5
+            db.store_request_count(DB_CURSOR)
+
+        time.sleep(1)
 
 
 if __name__ == '__main__':
