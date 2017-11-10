@@ -1,6 +1,6 @@
 import telegram
 import html
-from functools import wraps
+import json
 
 
 def build_content(**kwargs):
@@ -8,6 +8,10 @@ def build_content(**kwargs):
 
 
 def send_content(send_function, user_id, content):
+    # old spoilers used to use json strings as content
+    # decode it if it's one of these
+    if isinstance(content, str):
+        content = json.loads(content)
     return send_function(chat_id=user_id, **content)
 
 
