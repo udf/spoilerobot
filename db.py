@@ -7,48 +7,60 @@ import time
 import psycopg2
 import psycopg2.extras
 from cryptography.fernet import Fernet
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
+from cryptography.exceptions import InvalidSignature
 
 import config
 from util import timestamp_floor
 
-REQUEST_COUNT_LOCK = threading.Lock()
+# because certain database operations take place over multiple commands
+# we need a lock to prevent any race conditions
+DB_LOCK = threading.Lock()
+# temporarily stores the number of successful requests that the database served
 REQUEST_COUNT = 0
 
-def store_request_count(cursor):
-    global REQUEST_COUNT
-    current_count = 0
-    with REQUEST_COUNT_LOCK:
-        current_count = REQUEST_COUNT
-        REQUEST_COUNT = 0
 
-    if current_count == 0:
+def store_request_count(cursor):
+    """Resets the request counter and stores it in the database"""
+    global REQUEST_COUNT
+
+    if REQUEST_COUNT == 0:
+        # no need to do anything if there were are no requests to store
         return
 
-    cursor.execute('''
-        INSERT INTO requests (timestamp, count) VALUES (%(timestamp)s, %(count)s)
-        ON CONFLICT (timestamp) DO UPDATE
-        SET count = requests.count + %(count)s;
-        ''',
-        {'timestamp': timestamp_floor(config.REQUEST_COUNT_RESOLUTION), 'count': current_count}
-    )
-
+    with DB_LOCK:
+        # insert the request count into the database and add to it if there's a conflict
+        cursor.execute('''
+            INSERT INTO requests (timestamp, count) VALUES (%(timestamp)s, %(count)s)
+            ON CONFLICT (timestamp) DO UPDATE
+            SET count = requests.count + %(count)s;
+            ''',
+            {'timestamp': timestamp_floor(config.REQUEST_COUNT_RESOLUTION), 'count': REQUEST_COUNT}
+        )
+        REQUEST_COUNT = 0
 
 
 def derive_key(uuid, salt):
-    return base64.urlsafe_b64encode(Scrypt(
-        salt=salt,
-        length=32,
-        n=2**10,
-        r=8,
-        p=1,
-        backend=default_backend()
-    ).derive(uuid.encode()))
+    """derives a key from a uuid+unique salt using scrypt"""
+    return base64.urlsafe_b64encode(
+        Scrypt(
+            salt=salt,
+            length=32,
+            n=2**10,
+            r=8,
+            p=1,
+            backend=default_backend()
+        ).derive(uuid.encode())
+    )
 
 
 def hash_uuid(uuid):
+    """
+    hashes a uuid using SHA256 (these are the primary keys of the database)
+    we can't use a unique salt here because we need the hash to find the row
+    """
     digest = hashes.Hash(hashes.SHA256(), backend=default_backend())
     digest.update((uuid + config.HASH_PEPPER).encode())
     return digest.finalize()
@@ -83,36 +95,49 @@ def connect():
 
 
 def insert_spoiler(cursor, uuid, content_type, description, content):
+    # Slice away the first character since it stores instance specific data
     uuid = uuid[1:]
-    salt = os.urandom(8)
 
+    # Json encode the spoiler data
     data = json.dumps({
         'type': content_type,
         'description': description,
         'content': content,
     })
+
+    # Encrypt the data with a key derived from the uuid
+    salt = os.urandom(8)
     token = Fernet(derive_key(uuid, salt)).encrypt(data.encode())
 
-    cursor.execute(
-        'INSERT INTO spoilers (hash, salt, token) VALUES (%s, %s, %s)',
-        (hash_uuid(uuid), salt, token)
-    )
+    # Store it keyed by the hash of the uuid so that the content is invisible from prying eyes
+    with DB_LOCK:
+        cursor.execute(
+            'INSERT INTO spoilers (hash, salt, token) VALUES (%s, %s, %s)',
+            (hash_uuid(uuid), salt, token)
+        )
 
 
-def get_spoiler(cursor, uuid):    
-    uuid = uuid[1:]
-    cursor.execute(
-        'SELECT salt, token FROM spoilers WHERE hash=%s',
-        (hash_uuid(uuid),)
-    )
-    spoiler = cursor.fetchone()
-    if not spoiler:
-        print(f'failed to fetch "{uuid}"')
-        return None
-
+def get_spoiler(cursor, uuid):
     global REQUEST_COUNT
-    with REQUEST_COUNT_LOCK:
+    uuid = uuid[1:]
+
+    with DB_LOCK:
+        # try to find uuid by hash in the database
+        cursor.execute(
+            'SELECT salt, token FROM spoilers WHERE hash=%s',
+            (hash_uuid(uuid),)
+        )
+        spoiler = cursor.fetchone()
+        if not spoiler:
+            print(f'failed to fetch "{uuid}"')
+            return None
+
         REQUEST_COUNT += 1
 
-    token = Fernet(derive_key(uuid, bytes(spoiler['salt']))).decrypt(bytes(spoiler['token']))
+    # Decrypt the data and decode it
+    try:
+        token = Fernet(derive_key(uuid, bytes(spoiler['salt']))).decrypt(bytes(spoiler['token']))
+    except InvalidSignature:
+        # this shouldn't happen unless someone messes with the database
+        return None
     return json.loads(token)
