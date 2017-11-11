@@ -1,5 +1,4 @@
 import logging
-import time
 from collections import defaultdict
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 
@@ -180,10 +179,11 @@ def on_callback_query(bot, update, users):
     log_update(update, f"requested {spoiler['type']}")
 
     if spoiler['type'] == 'Text' and len(spoiler['content']) <= 200:
+        cache_time = 0 if decode_uuid(uuid)['is_major'] else 3600
         update.callback_query.answer(
             text=spoiler['content'],
             show_alert=True,
-            cache_time=3600
+            cache_time=cache_time
         )
     else:
         try:
