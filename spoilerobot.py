@@ -12,7 +12,7 @@ import validators
 from user import User
 from util import *
 import config
-import db
+from database import Database
 import handlers
 
 
@@ -49,7 +49,7 @@ def get_inline_results(query):
     description = ''
     if query.startswith('id:'):
         uuid = query[3:].lower().strip()
-        spoiler = db.get_spoiler(DB_CURSOR, uuid)
+        spoiler = database.get_spoiler(uuid)
         if spoiler:
             old_uuid = uuid
             description = spoiler['description']
@@ -149,7 +149,7 @@ def on_inline_chosen(bot, update):
     description, content = query_split(result.query)
 
     log_update(update, f"created Text from inline")
-    db.insert_spoiler(DB_CURSOR, uuid, 'Text', description, content)
+    database.insert_spoiler(uuid, 'Text', description, content)
 
 
 def send_spoiler(bot, user_id, spoiler):
@@ -168,7 +168,7 @@ def on_callback_query(bot, update, users):
         update.callback_query.answer(text='Please tap again to see the spoiler')
         return
 
-    spoiler = db.get_spoiler(DB_CURSOR, uuid)
+    spoiler = database.get_spoiler(uuid)
     if not spoiler:
         update.callback_query.answer(text='Spoiler not found. Too old?', cache_time=3600)
         return
@@ -197,7 +197,7 @@ def on_message(bot, update, users):
         uuid = get_uuid()
 
         log_update(update, f"created {user.spoiler_type}")
-        db.insert_spoiler(DB_CURSOR, uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content)
+        database.insert_spoiler(uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content)
 
         update.message.reply_text(
             text='Done! Your advanced spoiler is ready.',
@@ -216,7 +216,7 @@ def cmd_start(bot, update, args, users):
         if args[0] == 'inline':
             return user.handle_start(bot, update, True)
 
-        spoiler = db.get_spoiler(DB_CURSOR, args[0])
+        spoiler = database.get_spoiler(args[0])
         if spoiler:
             return send_spoiler(bot, update.message.from_user.id, spoiler)
 
@@ -302,11 +302,11 @@ def main():
     while updater.running:
         if time.time() >= next_request_save:
             next_request_save = time.time() + 5
-            db.store_request_count(DB_CURSOR)
+            database.store_request_count()
 
         time.sleep(1)
 
 
 if __name__ == '__main__':
-    DB_CURSOR = db.connect()
+    database = Database()
     main()
