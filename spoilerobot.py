@@ -76,52 +76,35 @@ def get_inline_results(query):
             return get_single_buttton_inline_keyboard(text, callback_data=uuid)
 
     description = html_escape(description)
-    results = []
-    # if we are able to split query into a custom description + custom content
+    # modify the inline description and reply text of the result if a custom title has been set
     if description and content:
-        # add those options to our results
-        # custom major
-        uuid = get_uuid(is_major=True, ignore=is_url, old=old_uuid)
-        results.append(get_article(
-            title='Custom Major Spoiler',
-            description=f'{content_type}, custom title, double tap',
-            thumb_url=IMAGE_MAJOR,
-            text=f'<b>Major Spoiler:</b> <pre>{description}</pre>',
-            uuid=uuid,
-            reply_markup=get_inline_keyboard('Double tap to show spoiler')
-        ))
-        # custom minor
-        uuid = get_uuid(is_major=False, ignore=is_url, old=old_uuid)
-        results.append(get_article(
-            title='Custom Minor Spoiler',
-            description=f'{content_type}, custom title, single tap',
-            thumb_url=IMAGE_MINOR,
-            text=f'<i>Minor Spoiler:</i> <pre>{description}</pre>',
-            uuid=uuid,
-            reply_markup=get_inline_keyboard('Show spoiler')
-        ))
+        description_fmt = f'{content_type}, custom title, {{}}'
+        text_fmt = f'{{}} <pre>{description}</pre>'
     else:
-        # add normal spoiler options to our results
-        # normal major
-        uuid = get_uuid(is_major=True, ignore=is_url, old=old_uuid)
-        results.append(get_article(
-            title='Major Spoiler!',
-            description=f'{content_type}, double tap',
-            thumb_url=IMAGE_MAJOR,
-            text='<b>Major Spoiler!</b>',
-            uuid=uuid,
-            reply_markup=get_inline_keyboard('Double tap to show spoiler')
-        ))
-        # normal minor
-        uuid = get_uuid(is_major=False, ignore=is_url, old=old_uuid)
-        results.append(get_article(
-            title='Minor Spoiler',
-            description=f'{content_type}, single tap',
-            thumb_url=IMAGE_MINOR,
-            text='<i>Minor Spoiler</i>',
-            uuid=uuid,
-            reply_markup=get_inline_keyboard('Show spoiler')
-        ))
+        description_fmt = f'{content_type}, {{}}'
+        text_fmt = '{}'
+
+    results = []
+    # add options to our results
+    uuid = get_uuid(is_major=True, ignore=is_url, old=old_uuid)
+    results.append(get_article(
+        title='Major Spoiler',
+        description=description_fmt.format('double tap'),
+        thumb_url=IMAGE_MAJOR,
+        text=text_fmt.format('<b>Major Spoiler!</b>'),
+        uuid=uuid,
+        reply_markup=get_inline_keyboard('Double tap to show spoiler')
+    ))
+
+    uuid = get_uuid(is_major=False, ignore=is_url, old=old_uuid)
+    results.append(get_article(
+        title='Minor Spoiler',
+        description=description_fmt.format('single tap'),
+        thumb_url=IMAGE_MINOR,
+        text=text_fmt.format('<i>Minor Spoiler</i>'),
+        uuid=uuid,
+        reply_markup=get_inline_keyboard('Show spoiler')
+    ))
 
     return results
 
