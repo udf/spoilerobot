@@ -128,7 +128,6 @@ def get_inline_results(query):
 
 def on_inline(bot, update):
     query = update.inline_query.query
-    query = html_unescape(query)
 
     update.inline_query.answer(
         get_inline_results(query),
@@ -147,7 +146,7 @@ def on_inline_chosen(bot, update):
     if decode_uuid(uuid)['ignore']:
         return
 
-    description, content = query_split(html_unescape(result.query))
+    description, content = query_split(result.query)
 
     log_update(update, f"created Text from inline")
     db.insert_spoiler(DB_CURSOR, uuid, 'Text', description, content)
