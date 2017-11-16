@@ -30,10 +30,8 @@ logger.addHandler(consoleHandler)
 
 
 # store image urls as variables so it's easier to understand what they are
-IMAGE_MAJOR_CUSTOM = 'http://i.imgur.com/kuIyXod.png'
-IMAGE_MINOR_CUSTOM = 'http://i.imgur.com/xFbwNIp.png'
-IMAGE_MAJOR_NORMAL = 'http://i.imgur.com/3qqCZZk.png'
-IMAGE_MINOR_NORMAL = 'http://i.imgur.com/csh5H5O.png'
+IMAGE_MINOR = 'https://i.imgur.com/qrViKOz.png'
+IMAGE_MAJOR = 'https://i.imgur.com/6oSoT16.png'
 
 
 def query_split(query):
@@ -87,7 +85,7 @@ def get_inline_results(query):
         results.append(get_article(
             title='Custom Major Spoiler',
             description=f'{content_type}, custom title, double tap',
-            thumb_url=IMAGE_MAJOR_CUSTOM,
+            thumb_url=IMAGE_MAJOR,
             text=f'<b>Major Spoiler:</b> <pre>{description}</pre>',
             uuid=uuid,
             reply_markup=get_inline_keyboard('Double tap to show spoiler')
@@ -97,7 +95,7 @@ def get_inline_results(query):
         results.append(get_article(
             title='Custom Minor Spoiler',
             description=f'{content_type}, custom title, single tap',
-            thumb_url=IMAGE_MINOR_CUSTOM,
+            thumb_url=IMAGE_MINOR,
             text=f'<i>Minor Spoiler:</i> <pre>{description}</pre>',
             uuid=uuid,
             reply_markup=get_inline_keyboard('Show spoiler')
@@ -109,7 +107,7 @@ def get_inline_results(query):
         results.append(get_article(
             title='Major Spoiler!',
             description=f'{content_type}, double tap',
-            thumb_url=IMAGE_MAJOR_NORMAL,
+            thumb_url=IMAGE_MAJOR,
             text='<b>Major Spoiler!</b>',
             uuid=uuid,
             reply_markup=get_inline_keyboard('Double tap to show spoiler')
@@ -119,7 +117,7 @@ def get_inline_results(query):
         results.append(get_article(
             title='Minor Spoiler',
             description=f'{content_type}, single tap',
-            thumb_url=IMAGE_MINOR_NORMAL,
+            thumb_url=IMAGE_MINOR,
             text='<i>Minor Spoiler</i>',
             uuid=uuid,
             reply_markup=get_inline_keyboard('Show spoiler')
