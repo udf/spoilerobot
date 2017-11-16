@@ -9,27 +9,22 @@ MULTIPLE_CLICK_TIMEOUT = 20
 
 
 class ClickCounter:
-    def __init__(self, required_clicks):
+    def __init__(self):
         self.last_click = 0
         self.count = 0
-        self.required_clicks = required_clicks
 
     def click(self):
         if time.time() - self.last_click >= MULTIPLE_CLICK_TIMEOUT:
             self.count = 0
         self.count += 1
         self.last_click = time.time()
-        return self.count >= self.required_clicks
+        return self.count >= 2
 
 
 class User:
     def __init__(self):
-        self.click_counters = defaultdict(lambda: ClickCounter(2))
+        self.click_counters = defaultdict(ClickCounter)
         self.started_from_inline = False
-        self.handle_conversation = None
-        self.spoiler_type = None
-        self.spoiler_content = None
-        self.spoiler_description = None
         self.reset_state()
 
     def reset_state(self):
