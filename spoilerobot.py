@@ -90,6 +90,7 @@ def get_inline_results(query):
                     'Yes yes' if 'Double' in text else 'Yes',
                     callback_data=uuid
                 )
+            old_uuid = '0yes'
 
     results = []
     # add options to our results
@@ -155,7 +156,10 @@ def on_callback_query(bot, update, users):
     from_id = update.callback_query.from_user.id
 
     if not users[from_id].record_click(uuid):
-        update.callback_query.answer(text='Please tap again to see the spoiler')
+        update.callback_query.answer(
+            text='Please tap again to see the spoiler' if uuid[1:] != 'yes'
+                else 'Please yes yes to see the yes'
+        )
         return
 
     spoiler = database.get_spoiler(uuid)

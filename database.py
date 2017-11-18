@@ -92,6 +92,8 @@ class Database:
     def insert_spoiler(self, uuid, content_type, description, content):
         # Slice away the first character since it stores instance specific data
         uuid = uuid[1:]
+        if uuid == 'yes':
+            return
 
         # Json encode the spoiler data
         data = json.dumps({
@@ -113,6 +115,12 @@ class Database:
 
     def get_spoiler(self, uuid):
         uuid = uuid[1:]
+        if uuid == 'yes':
+            return {
+                'type': 'Text',
+                'description': '',
+                'content': 'Yes',
+            }
 
         with self.lock:
             # try to find uuid by hash in the database
