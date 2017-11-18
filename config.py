@@ -19,3 +19,9 @@ HASH_PEPPER = os.environ['tg_spoilero_pepper']
 
 # the time in seconds in between timestamps of the request count statistic
 REQUEST_COUNT_RESOLUTION = 600
+
+# how many seconds before old taps are ignored
+MULTIPLE_CLICK_TIMEOUT = 20
+
+# how long in seconds to cache minor spoilers on the client-side
+MINOR_SPOILER_CACHE_TIME = 3600

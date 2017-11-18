@@ -11,7 +11,7 @@ import validators
 
 from user import User
 from util import *
-import config
+from config import BOT_TOKEN, MINOR_SPOILER_CACHE_TIME
 from database import Database
 import handlers
 
@@ -153,14 +153,14 @@ def on_callback_query(bot, update, users):
 
     spoiler = database.get_spoiler(uuid)
     if not spoiler:
-        update.callback_query.answer(text='Spoiler not found. Too old?', cache_time=3600)
+        update.callback_query.answer(text='Spoiler not found. Too old?')
         return
     is_major = decode_uuid(uuid)['is_major']
 
     log_update(update, f"requested {spoiler['type']} major={is_major}")
 
     if spoiler['type'] == 'Text' and len(spoiler['content']) <= 200:
-        cache_time = 0 if is_major else 3600
+        cache_time = 0 if is_major else MINOR_SPOILER_CACHE_TIME
         update.callback_query.answer(
             text=spoiler['content'],
             show_alert=True,
@@ -246,7 +246,7 @@ def main():
 
 
     users = defaultdict(User)
-    updater = Updater(config.BOT_TOKEN)
+    updater = Updater(BOT_TOKEN)
 
     dp = updater.dispatcher
 

@@ -2,28 +2,12 @@ from collections import defaultdict
 import time
 from util import *
 import handlers
-
-
-# how many seconds before old taps are ignored
-MULTIPLE_CLICK_TIMEOUT = 20
-
-
-class ClickCounter:
-    def __init__(self):
-        self.last_click = 0
-        self.count = 0
-
-    def click(self):
-        if time.time() - self.last_click >= MULTIPLE_CLICK_TIMEOUT:
-            self.count = 0
-        self.count += 1
-        self.last_click = time.time()
-        return self.count >= 2
+from config import MULTIPLE_CLICK_TIMEOUT
 
 
 class User:
     def __init__(self):
-        self.click_counters = defaultdict(ClickCounter)
+        self.last_clicks = defaultdict(int)
         self.started_from_inline = False
         self.reset_state()
 
@@ -37,10 +21,11 @@ class User:
         if not decode_uuid(uuid)['is_major']:
             return True
 
-        if self.click_counters[uuid].click():
-            del self.click_counters[uuid]
+        if time.time() - self.last_clicks[uuid] < MULTIPLE_CLICK_TIMEOUT:
+            del self.last_clicks[uuid]
             return True
 
+        self.last_clicks[uuid] = time.time()
         return False
 
     def handle_start(self, bot, update, from_inline=False):
@@ -63,7 +48,7 @@ class User:
         reply_markup = None
         if self.started_from_inline:
             reply_markup = get_single_buttton_inline_keyboard('OK', switch_inline_query='')
-            
+
         update.message.reply_text(
             text='The spoiler preparation has been cancelled.',
             reply_markup=reply_markup
