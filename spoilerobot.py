@@ -65,7 +65,7 @@ def get_inline_results(query):
 
     is_url = (
         isinstance(content, str) and
-        (bool(validators.url(content)) or bool(validators.url('http://' + content)))
+        (validators.url(content) or validators.url('http://' + content))
     )
     if is_url:
         def get_inline_keyboard(text):
