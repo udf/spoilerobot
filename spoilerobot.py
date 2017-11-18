@@ -75,14 +75,14 @@ def get_inline_results(query):
         def get_inline_keyboard(text):
             return get_single_buttton_inline_keyboard(text, callback_data=uuid)
 
-    description = html_escape(description)
     # modify the inline description and reply text of the result if a custom title has been set
     if description and content:
+        description = f'<pre>{html_escape(description)}</pre>'
         description_fmt = f'{content_type}, custom title, {{}}'
-        text_fmt = f'{{}} <pre>{description}</pre>'
+        text_fmt = '<{0}>{1}:</{0}> {3}'
     else:
         description_fmt = f'{content_type}, {{}}'
-        text_fmt = '{}'
+        text_fmt = '<{0}>{1}{2}</{0}>'
 
     results = []
     # add options to our results
@@ -91,7 +91,7 @@ def get_inline_results(query):
         title='Major Spoiler',
         description=description_fmt.format('double tap'),
         thumb_url=IMAGE_MAJOR,
-        text=text_fmt.format('<b>Major Spoiler!</b>'),
+        text=text_fmt.format('b', 'Major Spoiler', '!', description),
         uuid=uuid,
         reply_markup=get_inline_keyboard('Double tap to show spoiler')
     ))
@@ -101,7 +101,7 @@ def get_inline_results(query):
         title='Minor Spoiler',
         description=description_fmt.format('single tap'),
         thumb_url=IMAGE_MINOR,
-        text=text_fmt.format('<i>Minor Spoiler</i>'),
+        text=text_fmt.format('i', 'Minor Spoiler', '', description),
         uuid=uuid,
         reply_markup=get_inline_keyboard('Show spoiler')
     ))
