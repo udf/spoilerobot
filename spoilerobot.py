@@ -155,11 +155,12 @@ def on_callback_query(bot, update, users):
     if not spoiler:
         update.callback_query.answer(text='Spoiler not found. Too old?', cache_time=3600)
         return
+    is_major = decode_uuid(uuid)['is_major']
 
-    log_update(update, f"requested {spoiler['type']}")
+    log_update(update, f"requested {spoiler['type']} major={is_major}")
 
     if spoiler['type'] == 'Text' and len(spoiler['content']) <= 200:
-        cache_time = 0 if decode_uuid(uuid)['is_major'] else 3600
+        cache_time = 0 if is_major else 3600
         update.callback_query.answer(
             text=spoiler['content'],
             show_alert=True,
