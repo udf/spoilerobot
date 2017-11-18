@@ -83,6 +83,13 @@ def get_inline_results(query):
     else:
         description_fmt = f'{content_type}, {{}}'
         text_fmt = '<{0}>{1}{2}</{0}>'
+        if content == 'yes':
+            text_fmt = '<{0}>Yes{2}</{0}>'
+            def get_inline_keyboard(text):
+                return get_single_buttton_inline_keyboard(
+                    'Yes yes' if 'Double' in text else 'Yes',
+                    callback_data=uuid
+                )
 
     results = []
     # add options to our results
