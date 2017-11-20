@@ -57,8 +57,8 @@ class Database:
         )
         self.connection.autocommit = True
 
-        self.cursor = self.connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
-        self.cursor.execute('''
+        cursor = self.get_cursor()
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS spoilers (
                 hash BYTEA PRIMARY KEY,
                 timestamp INTEGER DEFAULT date_part('epoch', now()),
@@ -66,21 +66,28 @@ class Database:
                 token BYTEA
             )
         ''')
-        self.cursor.execute('''
+        cursor.execute('''
             CREATE TABLE IF NOT EXISTS requests (
                 timestamp INTEGER PRIMARY KEY,
                 count INTEGER
             )
         ''')
 
+    def get_cursor(self, use_dict_factory=True):
+        #TODO Reconnect if connection dropped?
+        return self.connection.cursor(
+            cursor_factory=psycopg2.extras.DictCursor if use_dict_factory else None
+        )
+
     def store_request_count(self):
         if self.request_count == 0:
             # no need to do anything if there were are no requests to store
             return
 
+        cursor = self.get_cursor()
         with self.lock:
             # insert the request count into the database and add to it if there's a conflict
-            self.cursor.execute('''
+            cursor.execute('''
                 INSERT INTO requests (timestamp, count) VALUES (%(timestamp)s, %(count)s)
                 ON CONFLICT (timestamp) DO UPDATE
                 SET count = requests.count + %(count)s;
@@ -107,8 +114,9 @@ class Database:
         token = Fernet(derive_key(uuid, salt)).encrypt(data.encode())
 
         # Store it keyed by the hash of the uuid so that the content is invisible from prying eyes
+        cursor = self.get_cursor()
         with self.lock:
-            self.cursor.execute(
+            cursor.execute(
                 'INSERT INTO spoilers (hash, salt, token) VALUES (%s, %s, %s)',
                 (hash_uuid(uuid), salt, token)
             )
@@ -122,13 +130,14 @@ class Database:
                 'content': 'Yes',
             }
 
+        cursor = self.get_cursor()
         with self.lock:
             # try to find uuid by hash in the database
-            self.cursor.execute(
+            cursor.execute(
                 'SELECT salt, token FROM spoilers WHERE hash=%s',
                 (hash_uuid(uuid),)
             )
-            spoiler = self.cursor.fetchone()
+            spoiler = cursor.fetchone()
             if not spoiler:
                 print(f'failed to fetch "{uuid}"')
                 return None
