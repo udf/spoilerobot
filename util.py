@@ -1,3 +1,4 @@
+import base64
 import html
 import os
 import time
@@ -12,6 +13,10 @@ def timestamp_floor(period):
     return int(time.time() // period) * period
 
 
+def gen_uuid():
+    return base64.urlsafe_b64encode(os.urandom(47))[:63].decode()
+
+
 def get_uuid(is_major=False, ignore=False, unused1=False, unused2=False, old=None):
     """
     Creates a uuid where the first character stores data about the spoiler
@@ -20,7 +25,7 @@ def get_uuid(is_major=False, ignore=False, unused1=False, unused2=False, old=Non
     """
     ignore = ignore or bool(old)
     flag = int(is_major) << 3 | int(ignore) << 2 | int(unused1) << 1 | unused2
-    return format(flag, 'x') + (old[1:] if old else os.urandom(24).hex())
+    return format(flag, 'x') + (old[1:] if old else gen_uuid())
 
 
 def decode_uuid(uuid):

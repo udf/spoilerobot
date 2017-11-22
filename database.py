@@ -40,6 +40,9 @@ def hash_uuid(uuid):
     return digest.finalize()
 
 
+def function():
+    pass
+
 class Database:
     def __init__(self):
         self.request_count = 0

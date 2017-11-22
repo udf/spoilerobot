@@ -48,7 +48,7 @@ def get_inline_results(query):
     content = ''
     description = ''
     if query.startswith('id:'):
-        uuid = query[3:].lower().strip()
+        uuid = query[3:].strip()
         spoiler = database.get_spoiler(uuid)
         if spoiler:
             old_uuid = uuid
@@ -179,8 +179,8 @@ def on_callback_query(bot, update, users):
         )
     else:
         try:
-            update.callback_query.answer(text='The spoiler will be sent to you as a direct message.')
             send_spoiler(bot, from_id, spoiler)
+            update.callback_query.answer(text='The spoiler has been sent to you as a direct message.')
         except (telegram.error.BadRequest, telegram.error.Unauthorized):
             update.callback_query.answer(url=f't.me/spoilerobot?start={uuid}')
 
