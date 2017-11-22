@@ -40,8 +40,16 @@ def hash_uuid(uuid):
     return digest.finalize()
 
 
-def function():
-    pass
+def split_uuid(uuid):
+    """
+    Splits a uuid into a database key and encryption key by hashing it and
+    then splitting the hash (the hash is needed because uuid can be of variable length)
+    """
+    digest = hashes.Hash(hashes.SHA512(), backend=default_backend())
+    digest.update((uuid + config.HASH_PEPPER).encode())
+    digest = digest.finalize()
+    return digest[:32], base64.urlsafe_b64encode(digest[32:])
+
 
 class Database:
     def __init__(self):
@@ -62,11 +70,11 @@ class Database:
 
         cursor = self.get_cursor()
         cursor.execute('''
-            CREATE TABLE IF NOT EXISTS spoilers (
+            CREATE TABLE IF NOT EXISTS spoilers_v2 (
                 hash BYTEA PRIMARY KEY,
                 timestamp INTEGER DEFAULT date_part('epoch', now()),
-                salt BYTEA,
-                token BYTEA
+                token BYTEA,
+                owner INTEGER
             )
         ''')
         cursor.execute('''
@@ -99,7 +107,7 @@ class Database:
             )
             self.request_count = 0
 
-    def insert_spoiler(self, uuid, content_type, description, content):
+    def insert_spoiler(self, uuid, content_type, description, content, owner):
         # Slice away the first character since it stores instance specific data
         uuid = uuid[1:]
         if uuid == 'yes':
@@ -110,19 +118,68 @@ class Database:
             'type': content_type,
             'description': description,
             'content': content,
-        })
+        }).encode()
 
         # Encrypt the data with a key derived from the uuid
-        salt = os.urandom(8)
-        token = Fernet(derive_key(uuid, salt)).encrypt(data.encode())
+        db_hash, key = split_uuid(uuid)
+        token = Fernet(key).encrypt(data)
 
-        # Store it keyed by the hash of the uuid so that the content is invisible from prying eyes
+        # Store it keyed by the first part of the hash of the uuid
         cursor = self.get_cursor()
         with self.lock:
             cursor.execute(
-                'INSERT INTO spoilers (hash, salt, token) VALUES (%s, %s, %s)',
-                (hash_uuid(uuid), salt, token)
+                'INSERT INTO spoilers_v2 (hash, token, owner) VALUES (%s, %s, %s)',
+                (db_hash, token, owner)
             )
+
+    def _spoiler_convert_v1_v2(self, old_hash, uuid, data, timestamp):
+        # Takes a spoiler data+timestamp and inserts it into the v2 table
+        db_hash, key = split_uuid(uuid)
+        token = Fernet(key).encrypt(data)
+
+        cursor = self.get_cursor()
+        with self.lock:
+            cursor.execute(
+                'INSERT INTO spoilers_v2 (timestamp, hash, token, owner) VALUES (%s, %s, %s, %s)',
+                (timestamp, db_hash, token, 0)
+            )
+            cursor.execute(
+                'DELETE FROM spoilers WHERE hash=%s',
+                (old_hash,)
+            )
+
+    def get_spoiler_v1(self, uuid):
+        """
+        Tries to get a spoiler from the old (v1) schema
+        If found it is inserted into the new (v2) schema
+        """
+        # try to find uuid by hash in the database
+        db_hash = hash_uuid(uuid)
+        cursor = self.get_cursor()
+        with self.lock:
+            cursor.execute(
+                'SELECT timestamp, salt, token FROM spoilers WHERE hash=%s',
+                (db_hash,)
+            )
+            spoiler = cursor.fetchone()
+
+        if not spoiler:
+            print(f'failed to fetch "{uuid}"')
+            return None
+
+        self.request_count += 1
+
+        # Decrypt the data and decode it
+        try:
+            data = Fernet(derive_key(uuid, bytes(spoiler['salt']))).decrypt(bytes(spoiler['token']))
+        except InvalidSignature:
+            # this shouldn't happen unless someone messes with the database
+            return None
+
+        # move it to the new schema
+        self._spoiler_convert_v1_v2(db_hash, uuid, data, spoiler['timestamp'])
+
+        return json.loads(data)
 
     def get_spoiler(self, uuid):
         uuid = uuid[1:]
@@ -133,24 +190,26 @@ class Database:
                 'content': 'Yes',
             }
 
+        db_hash, key = split_uuid(uuid)
+
+        # try to find uuid by hash in the database
         cursor = self.get_cursor()
         with self.lock:
-            # try to find uuid by hash in the database
             cursor.execute(
-                'SELECT salt, token FROM spoilers WHERE hash=%s',
-                (hash_uuid(uuid),)
+                'SELECT token FROM spoilers_v2 WHERE hash=%s',
+                (db_hash,)
             )
             spoiler = cursor.fetchone()
-            if not spoiler:
-                print(f'failed to fetch "{uuid}"')
-                return None
 
-            self.request_count += 1
+        if not spoiler:
+            return self.get_spoiler_v1(uuid)
+
+        self.request_count += 1
 
         # Decrypt the data and decode it
         try:
-            token = Fernet(derive_key(uuid, bytes(spoiler['salt']))).decrypt(bytes(spoiler['token']))
+            data = Fernet(key).decrypt(bytes(spoiler['token']))
         except InvalidSignature:
             # this shouldn't happen unless someone messes with the database
             return None
-        return json.loads(token)
+        return json.loads(data)

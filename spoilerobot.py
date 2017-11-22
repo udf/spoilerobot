@@ -140,7 +140,7 @@ def on_inline_chosen(bot, update):
     description, content = query_split(result.query)
 
     log_update(update, f"created Text from inline")
-    database.insert_spoiler(uuid, 'Text', description, content)
+    database.insert_spoiler(uuid, 'Text', description, content, update.effective_user.id)
 
 
 def send_spoiler(bot, user_id, spoiler):
@@ -191,7 +191,10 @@ def on_message(bot, update, users):
         uuid = get_uuid()
 
         log_update(update, f"created {user.spoiler_type}")
-        database.insert_spoiler(uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content)
+        database.insert_spoiler(
+            uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content,
+            update.effective_user.id
+        )
 
         update.message.reply_text(
             text='Done! Your advanced spoiler is ready.',
