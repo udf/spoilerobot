@@ -178,11 +178,7 @@ def on_callback_query(bot, update, users):
             cache_time=cache_time
         )
     else:
-        try:
-            send_spoiler(bot, from_id, spoiler)
-            update.callback_query.answer(text='The spoiler has been sent to you as a direct message.')
-        except (telegram.error.BadRequest, telegram.error.Unauthorized):
-            update.callback_query.answer(url=f't.me/{bot.username}?start={uuid}')
+        update.callback_query.answer(url=f't.me/{bot.username}?start={uuid}')
 
 
 def on_message(bot, update, users):
