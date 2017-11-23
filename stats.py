@@ -33,7 +33,10 @@ ax1.set_xlabel('Time (UTC)')
 
 
 # fetch data
-db_cursor.execute('SELECT timestamp, count FROM requests WHERE timestamp >= %s', (CUTOFF_TIMESTAMP,))
+db_cursor.execute(
+    'SELECT timestamp, count FROM requests WHERE timestamp >= %s AND timestamp < %s',
+    (CUTOFF_TIMESTAMP, CURRENT_TIMESTAMP)
+)
 requests = db_cursor.fetchall()
 
 # process data
@@ -53,7 +56,7 @@ ax1.tick_params('y', colors='xkcd:bright blue')
 db_cursor.execute('''
     (SELECT timestamp FROM spoilers) UNION ALL (SELECT timestamp FROM spoilers_v2)
 ''')
-spoilers = sorted(spoiler['timestamp'] for spoiler in db_cursor.fetchall())
+spoilers = sorted(spoiler['timestamp'] for spoiler in db_cursor.fetchall() if spoiler['timestamp'] < CURRENT_TIMESTAMP)
 total_spoilers = len(spoilers)
 
 # process data
@@ -74,7 +77,6 @@ ax2.tick_params('y', colors='xkcd:red')
 # save
 fig.tight_layout()
 plt.savefig('stats.png', dpi=100)
-
 
 
 # send
