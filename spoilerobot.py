@@ -182,6 +182,9 @@ def on_callback_query(bot, update, users):
 
 
 def on_message(bot, update, users):
+    if not update.message:
+        return
+
     user = users[update.message.from_user.id]
     if user.handle_conversation(bot, update) == 'END':
         uuid = get_uuid()
@@ -189,7 +192,7 @@ def on_message(bot, update, users):
         log_update(update, f"created {user.spoiler_type}")
         database.insert_spoiler(
             uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content,
-            update.effective_user.id
+            update.message.from_user.id
         )
 
         update.message.reply_text(
@@ -204,7 +207,6 @@ def on_message(bot, update, users):
 
 def cmd_start(bot, update, args, users):
     user = users[update.message.from_user.id]
-
     if args:
         if args[0] == 'inline':
             return user.handle_start(bot, update, True)
