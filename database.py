@@ -54,9 +54,8 @@ def split_uuid(uuid):
 class Database:
     def __init__(self):
         self.request_count = 0
-        # because certain database operations take place over multiple commands and threads
-        # we need a lock to prevent any race conditions
-        self.lock = threading.Lock()
+        # we need a lock to prevent double counting (or forgetting) requests
+        self.request_lock = threading.Lock()
         self.connect()
 
     def connect(self):
@@ -91,21 +90,23 @@ class Database:
         )
 
     def store_request_count(self):
-        if self.request_count == 0:
+        with self.request_lock:
+            request_count = self.request_count
+            self.request_count = 0
+
+        if request_count == 0:
             # no need to do anything if there were are no requests to store
             return
 
         cursor = self.get_cursor()
-        with self.lock:
-            # insert the request count into the database and add to it if there's a conflict
-            cursor.execute('''
-                INSERT INTO requests (timestamp, count) VALUES (%(timestamp)s, %(count)s)
-                ON CONFLICT (timestamp) DO UPDATE
-                SET count = requests.count + %(count)s;
-                ''',
-                {'timestamp': timestamp_floor(config.REQUEST_COUNT_RESOLUTION), 'count': self.request_count}
-            )
-            self.request_count = 0
+        # insert the request count into the database and add to it if there's a conflict
+        cursor.execute('''
+            INSERT INTO requests (timestamp, count) VALUES (%(timestamp)s, %(count)s)
+            ON CONFLICT (timestamp) DO UPDATE
+            SET count = requests.count + %(count)s;
+            ''',
+            {'timestamp': timestamp_floor(config.REQUEST_COUNT_RESOLUTION), 'count': request_count}
+        )
 
     def insert_spoiler(self, uuid, content_type, description, content, owner):
         # Slice away the first character since it stores instance specific data
@@ -126,11 +127,10 @@ class Database:
 
         # Store it keyed by the first part of the hash of the uuid
         cursor = self.get_cursor()
-        with self.lock:
-            cursor.execute(
-                'INSERT INTO spoilers_v2 (hash, token, owner) VALUES (%s, %s, %s)',
-                (db_hash, token, owner)
-            )
+        cursor.execute(
+            'INSERT INTO spoilers_v2 (hash, token, owner) VALUES (%s, %s, %s)',
+            (db_hash, token, owner)
+        )
 
     def _spoiler_convert_v1_v2(self, old_hash, uuid, data, timestamp):
         # Takes a spoiler data+timestamp and inserts it into the v2 table
@@ -138,15 +138,14 @@ class Database:
         token = Fernet(key).encrypt(data)
 
         cursor = self.get_cursor()
-        with self.lock:
-            cursor.execute(
-                'INSERT INTO spoilers_v2 (timestamp, hash, token, owner) VALUES (%s, %s, %s, %s)',
-                (timestamp, db_hash, token, 0)
-            )
-            cursor.execute(
-                'DELETE FROM spoilers WHERE hash=%s',
-                (old_hash,)
-            )
+        cursor.execute(
+            'INSERT INTO spoilers_v2 (timestamp, hash, token, owner) VALUES (%s, %s, %s, %s)',
+            (timestamp, db_hash, token, 0)
+        )
+        cursor.execute(
+            'DELETE FROM spoilers WHERE hash=%s',
+            (old_hash,)
+        )
 
     def get_spoiler_v1(self, uuid):
         """
@@ -156,18 +155,18 @@ class Database:
         # try to find uuid by hash in the database
         db_hash = hash_uuid(uuid)
         cursor = self.get_cursor()
-        with self.lock:
-            cursor.execute(
-                'SELECT timestamp, salt, token FROM spoilers WHERE hash=%s',
-                (db_hash,)
-            )
-            spoiler = cursor.fetchone()
+        cursor.execute(
+            'SELECT timestamp, salt, token FROM spoilers WHERE hash=%s',
+            (db_hash,)
+        )
+        spoiler = cursor.fetchone()
 
         if not spoiler:
             print(f'failed to fetch "{uuid}"')
             return None
 
-        self.request_count += 1
+        with self.request_lock:
+            self.request_count += 1
 
         # Decrypt the data and decode it
         try:
@@ -194,17 +193,17 @@ class Database:
 
         # try to find uuid by hash in the database
         cursor = self.get_cursor()
-        with self.lock:
-            cursor.execute(
-                'SELECT token FROM spoilers_v2 WHERE hash=%s',
-                (db_hash,)
-            )
-            spoiler = cursor.fetchone()
+        cursor.execute(
+            'SELECT token FROM spoilers_v2 WHERE hash=%s',
+            (db_hash,)
+        )
+        spoiler = cursor.fetchone()
 
         if not spoiler:
             return self.get_spoiler_v1(uuid)
 
-        self.request_count += 1
+        with self.request_lock:
+            self.request_count += 1
 
         # Decrypt the data and decode it
         try:
