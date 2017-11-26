@@ -1,5 +1,4 @@
 from collections import defaultdict
-import time
 from util import *
 import handlers
 from config import MULTIPLE_CLICK_TIMEOUT

@@ -2,7 +2,6 @@ import logging
 from collections import defaultdict
 from signal import signal, SIGINT, SIGTERM, SIGABRT
 
-import telegram.error
 from telegram.ext import (
     Updater, InlineQueryHandler, ChosenInlineResultHandler,
     MessageHandler, CallbackQueryHandler, CommandHandler, Filters
