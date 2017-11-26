@@ -245,7 +245,7 @@ def log_update(update, msg):
 
 
 def error(bot, update, error):
-    logger.warning('Update "%s" caused error "%s"' % (update, error))
+    logger.warning(f'Update "{update}" caused error "{error}"')
 
 
 def main():
