@@ -182,6 +182,9 @@ class Database:
 
     def get_spoiler(self, uuid):
         uuid = uuid[1:]
+        if not uuid:
+            return None
+            
         if uuid == 'yes':
             return {
                 'type': 'Text',
