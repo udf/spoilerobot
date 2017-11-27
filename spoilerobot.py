@@ -10,7 +10,7 @@ import validators
 
 from user import User
 from util import *
-from config import BOT_TOKEN, MINOR_SPOILER_CACHE_TIME
+from config import BOT_TOKEN, MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH
 from database import Database
 import handlers
 
@@ -119,11 +119,18 @@ def get_inline_results(query):
 def on_inline(bot, update):
     query = update.inline_query.query
 
+    if len(query) >= MAX_INLINE_LENGTH:
+        switch_pm_text = 'Too long! Use an advanced spoiler!'
+        results = []
+    else:
+        switch_pm_text = 'Advanced spoiler (media etc.)…'
+        results = get_inline_results(query)
+
     update.inline_query.answer(
-        get_inline_results(query),
+        results,
         cache_time=1,
         is_personal=True,
-        switch_pm_text='Advanced spoiler (media etc.)…',
+        switch_pm_text=switch_pm_text,
         switch_pm_parameter='inline'
     )
 

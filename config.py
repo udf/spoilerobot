@@ -25,3 +25,7 @@ MULTIPLE_CLICK_TIMEOUT = 20
 
 # how long in seconds to cache minor spoilers on the client-side
 MINOR_SPOILER_CACHE_TIME = 3600
+
+# The maximun length (in bytes) for a inline query before an advanced spoilers has to be used
+# (this is a telegram limitation)
+MAX_INLINE_LENGTH = 256
