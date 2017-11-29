@@ -202,7 +202,7 @@ def on_callback_query(bot, update, users):
         )
         return
 
-    spoiler = database.get_spoiler(uuid, increment_stats=False)
+    spoiler = database.get_spoiler(uuid)
     if not spoiler:
         update.callback_query.answer(text='Spoiler not found. Too old?')
         return
@@ -255,7 +255,7 @@ def cmd_start(bot, update, args, users, banned):
         args = ['']
 
     if args[0] != 'inline':
-        spoiler = database.get_spoiler(args[0])
+        spoiler = database.get_spoiler(args[0], increment_stats=False)
         if spoiler:
             return send_spoiler(bot, update.message.from_user.id, spoiler)
 
