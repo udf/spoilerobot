@@ -202,7 +202,7 @@ def on_callback_query(bot, update, users):
         )
         return
 
-    spoiler = database.get_spoiler(uuid)
+    spoiler = database.get_spoiler(uuid, increment_stats=False)
     if not spoiler:
         update.callback_query.answer(text='Spoiler not found. Too old?')
         return

@@ -196,7 +196,7 @@ class Database:
             (old_hash,)
         )
 
-    def get_spoiler_v1(self, uuid):
+    def get_spoiler_v1(self, uuid, increment_stats=True):
         """
         Tries to get a spoiler from the old (v1) schema
         If found it is inserted into the new (v2) schema
@@ -213,9 +213,10 @@ class Database:
         if not spoiler:
             print(f'failed to fetch "{uuid}"')
             return None
-
-        with self.request_lock:
-            self.request_count += 1
+            
+        if increment_stats:
+            with self.request_lock:
+                self.request_count += 1
 
         # Decrypt the data and decode it
         try:
@@ -229,7 +230,7 @@ class Database:
 
         return json.loads(data)
 
-    def get_spoiler(self, uuid):
+    def get_spoiler(self, uuid, increment_stats=True):
         uuid = uuid[1:]
         if not uuid:
             return None
@@ -254,8 +255,9 @@ class Database:
         if not spoiler:
             return self.get_spoiler_v1(uuid)
 
-        with self.request_lock:
-            self.request_count += 1
+        if increment_stats:
+            with self.request_lock:
+                self.request_count += 1
 
         # Decrypt the data and decode it
         try:
