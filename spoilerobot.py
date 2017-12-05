@@ -1,6 +1,5 @@
 import logging
 from collections import defaultdict
-from signal import signal, SIGINT, SIGTERM, SIGABRT
 
 from telegram.ext import (
     Updater, InlineQueryHandler, ChosenInlineResultHandler,
@@ -10,7 +9,10 @@ import validators
 
 from user import User
 from util import *
-from config import BOT_TOKEN, MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH, ADMIN_ID
+from config import (
+    BOT_TOKEN, ADMIN_ID,
+    MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH
+)
 from database import Database
 import handlers
 import rate_limiter
@@ -301,7 +303,7 @@ def cmd_unban(bot, update, args):
 
 def log_update(update, msg):
     logger.info(
-        f"{update.effective_user.username} ({update.effective_user.id}) {msg}"
+        f'{update.effective_user.username} ({update.effective_user.id}) {msg}'
     )
 
 
@@ -310,12 +312,6 @@ def error(bot, update, error):
 
 
 def main():
-    def on_signal(signum, frame):
-        if updater.running:
-            updater.stop()
-        else:
-            exit(1)
-
     users = defaultdict(User)
     updater = Updater(BOT_TOKEN)
 
@@ -347,19 +343,14 @@ def main():
 
     dp.add_error_handler(error)
 
+    j = updater.job_queue
+    j.run_repeating(
+        lambda bot, job: database.store_request_count(),
+        interval=5, first=0
+    )
+
     updater.start_polling()
-
-
-    for sig in (SIGINT, SIGTERM, SIGABRT):
-        signal(sig, on_signal)
-
-    next_request_save = 0
-    while updater.running:
-        if time.time() >= next_request_save:
-            next_request_save = time.time() + 5
-            database.store_request_count()
-
-        time.sleep(1)
+    updater.idle()
 
 
 if __name__ == '__main__':

@@ -58,6 +58,45 @@ class Database:
         self.connect()
         self.banned_users = self.get_banned_users()
 
+    # utility methods
+    def connect(self):
+        self.connection = psycopg2.connect(
+            dbname=config.DB_NAME,
+            user=config.DB_USERNAME,
+            host=config.DB_HOST,
+            password=config.DB_PASSWORD
+        )
+        self.connection.autocommit = True
+
+        cursor = self.get_cursor()
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS spoilers_v2 (
+                hash BYTEA PRIMARY KEY,
+                timestamp INTEGER DEFAULT date_part('epoch', now()),
+                token BYTEA,
+                owner INTEGER
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS requests (
+                timestamp INTEGER PRIMARY KEY,
+                count INTEGER
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS banned_users (
+                user_id INTEGER PRIMARY KEY,
+                expires INTEGER
+            )
+        ''')
+
+    def get_cursor(self, use_dict_factory=True):
+        #TODO Reconnect if connection dropped?
+        return self.connection.cursor(
+            cursor_factory=psycopg2.extras.DictCursor if use_dict_factory else None
+        )
+
+    # banned user management
     def get_banned_users(self):
         cursor = self.get_cursor()
         cursor.execute('SELECT * FROM banned_users;')
@@ -101,43 +140,7 @@ class Database:
         )
         return True
 
-    def connect(self):
-        self.connection = psycopg2.connect(
-            dbname=config.DB_NAME,
-            user=config.DB_USERNAME,
-            host=config.DB_HOST,
-            password=config.DB_PASSWORD
-        )
-        self.connection.autocommit = True
-
-        cursor = self.get_cursor()
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS spoilers_v2 (
-                hash BYTEA PRIMARY KEY,
-                timestamp INTEGER DEFAULT date_part('epoch', now()),
-                token BYTEA,
-                owner INTEGER
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS requests (
-                timestamp INTEGER PRIMARY KEY,
-                count INTEGER
-            )
-        ''')
-        cursor.execute('''
-            CREATE TABLE IF NOT EXISTS banned_users (
-                user_id INTEGER PRIMARY KEY,
-                expires INTEGER
-            )
-        ''')
-
-    def get_cursor(self, use_dict_factory=True):
-        #TODO Reconnect if connection dropped?
-        return self.connection.cursor(
-            cursor_factory=psycopg2.extras.DictCursor if use_dict_factory else None
-        )
-
+    # statistics
     def store_request_count(self):
         with self.request_lock:
             request_count = self.request_count
@@ -157,6 +160,7 @@ class Database:
             {'timestamp': timestamp_floor(config.REQUEST_COUNT_RESOLUTION), 'count': request_count}
         )
 
+    # spoiler management
     def insert_spoiler(self, uuid, content_type, description, content, owner):
         # Slice away the first character since it stores instance specific data
         uuid = uuid[1:]
