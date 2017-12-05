@@ -183,7 +183,7 @@ def on_inline_chosen(bot, update):
 
     log_update(update, f"created Text from inline")
     database.insert_spoiler(uuid, 'Text', description, content, user_id)
-    rate_limiter.hit(user_id, database, bot, logger)
+    rate_limiter.hit(user_id, database, bot)
 
 
 def send_spoiler(bot, user_id, spoiler):
@@ -239,7 +239,7 @@ def on_message(bot, update, users):
             user_id
         )
 
-        rate_limiter.hit(user_id, database, bot, logger)
+        rate_limiter.hit(user_id, database, bot)
 
         update.message.reply_text(
             text='Done! Your advanced spoiler is ready.',

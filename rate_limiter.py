@@ -14,7 +14,7 @@ class UserPressure:
         self.inbox = ''
 
 
-def hit(user_id, database, bot, logger):
+def hit(user_id, database, bot):
     user = PRESSURES[user_id]
 
     current_time = time.time()
@@ -29,11 +29,14 @@ def hit(user_id, database, bot, logger):
         remove_count = database.ban_user(user_id, ban_expiry)
         user.inbox = (
             f'You have been banned from creating new spoilers until {pretty_expiry}.\n'
-            f'As a result of this, {remove_count} of your recent spoilers have been permanently deleted.\n\n'
+            f'As a result of this, {remove_count} of your most recent spoilers have been permanently deleted.\n\n'
             f'Please contact <a href="tg://user?id={ADMIN_ID}">my owner</a> if you feel this was done in error!'
         )
         try_inbox(user_id, bot)
-        logger.info(f'Banned {user_id} until {pretty_expiry}')
+        bot.send_message(
+            chat_id=ADMIN_ID,
+            text=f'{user_id} has been banned until {pretty_expiry}; {remove_count} spoilers were removed.'
+        )
 
 
 def try_inbox(user_id, bot):
