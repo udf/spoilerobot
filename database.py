@@ -96,6 +96,14 @@ class Database:
             cursor_factory=psycopg2.extras.DictCursor if use_dict_factory else None
         )
 
+    def forget_old_owners(self, forget_time):
+        cursor = self.get_cursor()
+        cursor.execute(
+            'UPDATE spoilers_v2 SET owner = 0 WHERE timestamp <= %s AND owner > 0;',
+            (time.time() - forget_time,)
+        )
+        return cursor.rowcount
+
     # banned user management
     def get_banned_users(self):
         cursor = self.get_cursor()
@@ -215,7 +223,6 @@ class Database:
         spoiler = cursor.fetchone()
 
         if not spoiler:
-            print(f'failed to fetch "{uuid}"')
             return None
             
         if increment_stats:

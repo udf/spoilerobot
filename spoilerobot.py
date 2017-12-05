@@ -11,8 +11,9 @@ from user import User
 from util import *
 from config import (
     BOT_TOKEN, ADMIN_ID,
-    MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH
-)
+    MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH,
+    SPOILER_OWNER_FORGET_AFTER
+)   
 from database import Database
 import handlers
 import rate_limiter
@@ -311,6 +312,12 @@ def error(bot, update, error):
     logger.warning(f'Update "{update}" caused error "{error}"')
 
 
+def job_forget_old_owners(bot, job):
+    row_count = database.forget_old_owners(SPOILER_OWNER_FORGET_AFTER)
+    if row_count:
+        logger.info(f'forgot owners from {row_count} spoiler(s)')
+
+
 def main():
     users = defaultdict(User)
     updater = Updater(BOT_TOKEN)
@@ -348,6 +355,7 @@ def main():
         lambda bot, job: database.store_request_count(),
         interval=5, first=0
     )
+    j.run_repeating(job_forget_old_owners, interval=60, first=0)
 
     updater.start_polling()
     updater.idle()

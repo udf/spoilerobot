@@ -22,7 +22,6 @@ def hit(user_id, database, bot, logger):
     user.pressure += -time_delta / RATE_LIMIT_DECAY_PERIOD + 1
     user.pressure = max(0, user.pressure)
     user.last_hit = current_time
-    print(f'{user_id} now has {user.pressure} rlp')
 
     if user.pressure > RATE_LIMIT_PRESSURE_LIMIT:
         ban_expiry = current_time + RATE_LIMIT_BAN_TIME

@@ -50,3 +50,8 @@ RATE_LIMIT_PRESSURE_LIMIT = 10
 
 # How long in seconds a user should be banned for
 RATE_LIMIT_BAN_TIME = 24*60*60
+
+# How long in seconds before a spoiler's owner if forgotten
+# When a user is banned, all their recent spoilers are deleted
+# this value controls how far back "recent" actually is
+SPOILER_OWNER_FORGET_AFTER = 60 * 20
