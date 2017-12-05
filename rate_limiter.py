@@ -26,9 +26,10 @@ def hit(user_id, database, bot, logger):
     if user.pressure > RATE_LIMIT_PRESSURE_LIMIT:
         ban_expiry = current_time + RATE_LIMIT_BAN_TIME
         pretty_expiry = pretty_timestamp(ban_expiry)
-        database.ban_user(user_id, ban_expiry)
+        remove_count = database.ban_user(user_id, ban_expiry)
         user.inbox = (
-            f'You have been banned from creating new spoilers until {pretty_expiry}\n'
+            f'You have been banned from creating new spoilers until {pretty_expiry}.\n'
+            f'As a result of this, {remove_count} of your recent spoilers have been permanently deleted.\n\n'
             f'Please contact <a href="tg://user?id={ADMIN_ID}">my owner</a> if you feel this was done in error!'
         )
         try_inbox(user_id, bot)

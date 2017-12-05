@@ -123,7 +123,12 @@ class Database:
             ''',
             {'user_id': user_id, 'expires': expires}
         )
+        cursor.execute(
+            'DELETE from spoilers_v2 WHERE owner = %s;',
+            (user_id,)
+        )
         self.banned_users[user_id] = expires
+        return cursor.rowcount
 
     def is_user_banned(self, user_id):
         user_id = int(user_id)
