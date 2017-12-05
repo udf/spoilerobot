@@ -1,6 +1,7 @@
 import base64
 import json
 import threading
+import time
 
 import psycopg2
 import psycopg2.extras
@@ -55,6 +56,50 @@ class Database:
         # we need a lock to prevent double counting (or forgetting) requests
         self.request_lock = threading.Lock()
         self.connect()
+        self.banned_users = self.get_banned_users()
+
+    def get_banned_users(self):
+        cursor = self.get_cursor()
+        cursor.execute('SELECT * FROM banned_users;')
+        results = cursor.fetchall()
+        banned_users = {}
+        for result in results:
+            banned_users[int(result['user_id'])] = int(result['expires'])
+        return banned_users
+
+    def ban_user(self, user_id, expires):
+        cursor = self.get_cursor()
+        cursor.execute('''
+            INSERT INTO banned_users (user_id, expires) VALUES (%(user_id)s, %(expires)s)
+            ON CONFLICT (user_id) DO UPDATE
+            SET expires = %(expires)s;
+            ''',
+            {'user_id': user_id, 'expires': expires}
+        )
+        self.banned_users[user_id] = expires
+
+    def is_user_banned(self, user_id):
+        user_id = int(user_id)
+        if user_id not in self.banned_users:
+            return False
+
+        if time.time() < self.banned_users[user_id]:
+            return True
+
+        self.remove_banned_user(user_id)
+        return False
+
+    def remove_banned_user(self, user_id):
+        user_id = int(user_id)
+        if user_id not in self.banned_users:
+            return False
+
+        del self.banned_users[user_id]
+        self.get_cursor().execute(
+            'DELETE FROM banned_users WHERE user_id=%s',
+            (user_id,)
+        )
+        return True
 
     def connect(self):
         self.connection = psycopg2.connect(
@@ -78,6 +123,12 @@ class Database:
             CREATE TABLE IF NOT EXISTS requests (
                 timestamp INTEGER PRIMARY KEY,
                 count INTEGER
+            )
+        ''')
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS banned_users (
+                user_id INTEGER PRIMARY KEY,
+                expires INTEGER
             )
         ''')
 

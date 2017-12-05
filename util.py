@@ -2,11 +2,17 @@ import base64
 import html
 import os
 import time
+from datetime import datetime
+
 
 from telegram import (
     InlineQueryResultArticle, InputTextMessageContent,
     InlineKeyboardMarkup, InlineKeyboardButton
 )
+
+
+def pretty_timestamp(timestamp):
+    return datetime.utcfromtimestamp(timestamp).strftime('%Y-%m-%d %H:%M:%S UTC')
 
 
 def timestamp_floor(period):

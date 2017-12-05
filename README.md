@@ -17,4 +17,5 @@ You can try it out by typing @spoilerobot (inline) in Telegram
 - Install dependencies with `pip install python-telegram-bot validators cryptography psycopg2`
 - Run the script and follow the instructions on creating your unique pepper (note that your pepper should remain the same for each instance of the bot and database)
 
+- Put your user_id in the tg_bot_spoilero_admin variable  
 - You can now run it with `tg_bot_spoilero=TOKEN python spoilerobot.py`

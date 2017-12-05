@@ -10,9 +10,10 @@ import validators
 
 from user import User
 from util import *
-from config import BOT_TOKEN, MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH
+from config import BOT_TOKEN, MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH, ADMIN_ID
 from database import Database
 import handlers
+import rate_limiter
 
 
 logger = logging.getLogger()
@@ -31,6 +32,34 @@ logger.addHandler(consoleHandler)
 # store image urls as variables so it's easier to understand what they are
 IMAGE_MINOR = 'https://i.imgur.com/qrViKOz.png'
 IMAGE_MAJOR = 'https://i.imgur.com/6oSoT16.png'
+
+
+def check_ban(try_inbox, pass_ban):
+    """
+    Performs actions if a user is banned
+    decorates a function where the first two parameters are bot, update
+
+    try_inbox: if True, and the user has a non-empty inbox, sends the inbox
+    pass_ban: if True and the user is banned,
+        function is called with a banned keyword argument,
+        otherwise function is called if the user is not banned
+    """
+    def _real(function):
+        def wrapped(bot, update, *args, **kwargs):
+            user_id = update.effective_user.id
+            if try_inbox:
+                rate_limiter.try_inbox(user_id, bot)
+
+            banned = database.is_user_banned(user_id)
+            if banned and not pass_ban:
+                return lambda: None
+            if pass_ban:
+                return function(bot, update, *args, **kwargs, banned=banned)
+            else:
+                return function(bot, update, *args, **kwargs)
+        return wrapped
+
+    return _real
 
 
 def query_split(query):
@@ -116,15 +145,18 @@ def get_inline_results(query):
     return results
 
 
-def on_inline(bot, update):
+@check_ban(try_inbox=False, pass_ban=True)
+def on_inline(bot, update, banned):
     query = update.inline_query.query
 
-    if len(query) >= MAX_INLINE_LENGTH:
-        switch_pm_text = 'Too long! Use an advanced spoiler!'
-        results = []
-    else:
-        switch_pm_text = 'Advanced spoiler (media etc.)…'
-        results = get_inline_results(query)
+    def get_text_and_results():
+        if banned:
+            return 'Banned! :(', []
+        if len(query) >= MAX_INLINE_LENGTH:
+            return 'Too long! Use an advanced spoiler!', []
+        return 'Advanced spoiler (media etc.)…', get_inline_results(query)
+
+    switch_pm_text, results = get_text_and_results()
 
     update.inline_query.answer(
         results,
@@ -139,6 +171,7 @@ def on_inline_chosen(bot, update):
     """Stores the chosen inline result in the db, if necessary"""
     result = update.chosen_inline_result
     uuid = result.result_id
+    user_id = update.effective_user.id
 
     if decode_uuid(uuid)['ignore']:
         return
@@ -146,7 +179,8 @@ def on_inline_chosen(bot, update):
     description, content = query_split(result.query)
 
     log_update(update, f"created Text from inline")
-    database.insert_spoiler(uuid, 'Text', description, content, update.effective_user.id)
+    database.insert_spoiler(uuid, 'Text', description, content, user_id)
+    rate_limiter.hit(user_id, database, bot, logger)
 
 
 def send_spoiler(bot, user_id, spoiler):
@@ -191,15 +225,18 @@ def on_message(bot, update, users):
     if not update.message:
         return
 
-    user = users[update.message.from_user.id]
+    user_id = update.message.from_user.id
+    user = users[user_id]
     if user.handle_conversation(bot, update) == 'END':
         uuid = get_uuid()
 
         log_update(update, f"created {user.spoiler_type}")
         database.insert_spoiler(
             uuid, user.spoiler_type, user.spoiler_description, user.spoiler_content,
-            update.message.from_user.id
+            user_id
         )
+
+        rate_limiter.hit(user_id, database, bot, logger)
 
         update.message.reply_text(
             text='Done! Your advanced spoiler is ready.',
@@ -211,27 +248,33 @@ def on_message(bot, update, users):
         user.reset_state()
 
 
-def cmd_start(bot, update, args, users):
+@check_ban(try_inbox=True, pass_ban=True)
+def cmd_start(bot, update, args, users, banned):
     user = users[update.message.from_user.id]
-    if args:
-        if args[0] == 'inline':
-            return user.handle_start(bot, update, True)
+    if not args:
+        args = ['']
 
+    if args[0] != 'inline':
         spoiler = database.get_spoiler(args[0])
         if spoiler:
             return send_spoiler(bot, update.message.from_user.id, spoiler)
 
-    user.handle_start(bot, update)
+    if banned:
+        return
+    user.handle_start(bot, update, args[0] == 'inline')
 
 
+@check_ban(try_inbox=True, pass_ban=False)
 def cmd_cancel(bot, update, users):
     users[update.message.from_user.id].handle_cancel(bot, update)
 
 
+@check_ban(try_inbox=True, pass_ban=False)
 def cmd_clear(bot, update):
     update.message.reply_text(250 * '.\n')
 
 
+@check_ban(try_inbox=True, pass_ban=False)
 def cmd_help(bot, update):
     update.message.reply_text(
         text='Type /start to prepare an advanced spoiler with a custom title.\n\n'
@@ -242,6 +285,18 @@ def cmd_help(bot, update):
         'Note that the title will be immediately visible!',
         parse_mode='HTML'
     )
+
+
+def cmd_unban(bot, update, args):
+    if update.effective_user.id != ADMIN_ID:
+        return
+    if not args:
+        return
+
+    if database.remove_banned_user(args[0]):
+        update.message.reply_text('Successfully unbanned user.')
+    else:
+        update.message.reply_text('Failed: user was not banned.')
 
 
 def log_update(update, msg):
@@ -260,7 +315,6 @@ def main():
             updater.stop()
         else:
             exit(1)
-
 
     users = defaultdict(User)
     updater = Updater(BOT_TOKEN)
@@ -284,6 +338,7 @@ def main():
     ))
     dp.add_handler(CommandHandler('clear', cmd_clear))
     dp.add_handler(CommandHandler('help', cmd_help))
+    dp.add_handler(CommandHandler('unban', cmd_unban, pass_args=True))
 
     dp.add_handler(MessageHandler(
         Filters.all,
@@ -298,7 +353,6 @@ def main():
     for sig in (SIGINT, SIGTERM, SIGABRT):
         signal(sig, on_signal)
 
-    # TODO maybe clear old user click records?
     next_request_save = 0
     while updater.running:
         if time.time() >= next_request_save:
