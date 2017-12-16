@@ -35,7 +35,9 @@ def hit(user_id, database, bot):
         try_inbox(user_id, bot)
         bot.send_message(
             chat_id=ADMIN_ID,
-            text=f'{user_id} has been banned until {pretty_expiry}; {remove_count} spoilers were removed.'
+            text=f'<a href="tg://user?id={user_id}">{user_id}</a> has been banned'
+                 f' until {pretty_expiry}\n{remove_count} spoilers were removed.',
+            parse_mode='HTML'
         )
 
 
