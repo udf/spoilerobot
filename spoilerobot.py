@@ -5,7 +5,6 @@ from telegram.ext import (
     Updater, InlineQueryHandler, ChosenInlineResultHandler,
     MessageHandler, CallbackQueryHandler, CommandHandler, Filters
 )
-import validators
 
 from user import User
 from util import *
@@ -13,7 +12,7 @@ from config import (
     BOT_TOKEN, ADMIN_ID,
     MINOR_SPOILER_CACHE_TIME, MAX_INLINE_LENGTH,
     SPOILER_OWNER_FORGET_AFTER
-)   
+)
 from database import Database
 import handlers
 import rate_limiter
@@ -94,10 +93,7 @@ def get_inline_results(query):
     if not content:
         return []
 
-    is_url = (
-        isinstance(content, str) and
-        (validators.url(content) or validators.url('http://' + content))
-    )
+    is_url = isinstance(content, str) and content.startswith('http')
     if is_url:
         def get_inline_keyboard(text):
             return get_single_buttton_inline_keyboard('Show spoiler', url=content)
